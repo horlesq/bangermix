@@ -20,7 +20,7 @@ export function Knob(p: KnobProps) {
   const min = () => p.min ?? 0;
   const max = () => p.max ?? 1;
   const reset = () => p.reset ?? min();
-  const size = () => p.size ?? 34;
+  const size = () => p.size ?? 30;
   const frac = () => (p.value - min()) / (max() - min());
   const angle = (f: number) => -135 + f * 270;
 
@@ -55,7 +55,7 @@ export function Knob(p: KnobProps) {
   };
 
   const arc = () => {
-    const r = size() / 2 - 3;
+    const r = size() / 2 - 1.5;
     const c = size() / 2;
     const a0 = angle((reset() - min()) / (max() - min()));
     const a1 = angle(frac());
@@ -68,25 +68,20 @@ export function Knob(p: KnobProps) {
     return `M ${pt(from)} A ${r} ${r} 0 ${to - from > 180 ? 1 : 0} 1 ${pt(to)}`;
   };
 
+  const c = () => size() / 2;
   return (
     <div class="knob" title={p.title ?? p.label}>
-      <svg
-        width={size()}
-        height={size()}
-        onPointerDown={down}
-        onWheel={wheel}
-        onDblClick={() => p.onChange(reset())}
-      >
-        <circle cx={size() / 2} cy={size() / 2} r={size() / 2 - 3} class="knob-track" />
+      <svg width={size()} height={size()} viewBox={`0 0 ${size()} ${size()}`} onPointerDown={down} onWheel={wheel} onDblClick={() => p.onChange(reset())}>
+        <circle cx={c()} cy={c()} r={c() - 1.5} class="knob-ring" />
         <path d={arc()} class="knob-arc" style={{ stroke: p.color }} />
-        <circle cx={size() / 2} cy={size() / 2} r={size() / 2 - 7} class="knob-body" />
+        <circle cx={c()} cy={c()} r={c() - 5} class="knob-body" />
         <line
-          x1={size() / 2}
-          y1={size() / 2}
-          x2={size() / 2}
-          y2={7}
+          x1={c()}
+          y1={c() - (c() - 5) * 0.25}
+          x2={c()}
+          y2={6.5}
           class="knob-pointer"
-          transform={`rotate(${angle(frac())} ${size() / 2} ${size() / 2})`}
+          transform={`rotate(${angle(frac())} ${c()} ${c()})`}
         />
       </svg>
       {p.label && <span class="knob-label">{p.label}</span>}
@@ -183,7 +178,9 @@ export function Fader(p: FaderProps) {
     >
       <div class="fader-track" ref={track}>
         {p.children}
-        <div class="fader-cap" style={capPos()} />
+        <div class="fader-cap" style={capPos()}>
+          <i />
+        </div>
       </div>
     </div>
   );

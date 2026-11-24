@@ -2,7 +2,7 @@
 
 A DJ app in the browser, laid out like the classic two-deck performance screen: scrolling 3-band waveforms on top, decks either side of a mixer, the library below. Everything runs on your computer: audio, analysis and the library. Nothing is uploaded. It goes online at **bangermix.horly.dev** as static files.
 
-**Status (24 November 2026):** first working version. Two or four decks, sync, loops, hot cues, beat FX, recording, a library from your music folder, keyboard and mouse control, and a mapping for the Pioneer DDJ-FLX4. Tested in Chrome with generated tracks; not yet with a real controller or a large library. See [PLAN.md](PLAN.md) for what comes next.
+**Status (24 November 2026):** two or four decks, sync, keylock and key shift, loops, hot cues, beat FX, recording, a library from your music folder with rekordbox import, keyboard and mouse control, a mapping for the Pioneer DDJ-FLX4, and offline use. Tested in Chrome with generated tracks; not yet with a real controller or a large library. See [PLAN.md](PLAN.md) for what comes next.
 
 ## Run it
 Needs Rust (stable, with `rustup target add wasm32-unknown-unknown`) and Node.js 22+. On Windows, run the commands from PowerShell.
@@ -20,9 +20,12 @@ Use Chrome or Edge. Other browsers play too, but they don't remember your music 
 ## Using it
 - **Music:** *Add a music folder* (Chrome remembers it; after a restart it asks for one click to read it again), or drop files and folders anywhere on the window. Tracks are analysed in the background: BPM, beat grid, key, waveform.
 - **Load:** double-click a track, drag it onto a deck, or select it and press `E` (deck 1) / `I` (deck 2).
+- **rekordbox:** export your collection (File → Export Collection in xml format), add the same music folders here, then Settings → Library → Import. Grids, keys, cues, loops, ratings and playlists come across.
+- **Pads:** HOT CUE, BEAT LOOP and BEAT JUMP modes, as on a controller.
+- **Keylock:** MT keeps the pitch when the tempo moves; − / + shifts the key; KEY SYNC shifts it into the master deck's key.
 - **Mouse:** knobs and faders drag, double-click resets, Shift for fine moves. Drag a waveform or jog wheel to scratch (or nudge with *Vinyl* off). Scroll a waveform to zoom.
-- **Keyboard:** `F1` lists every shortcut. Deck 1 is on the left hand (`Z` cue, `X` play, `C` sync, `1–4` hot cues), deck 2 on the right (`M` cue, `,` play, `.` sync, `7–0` hot cues).
-- **Headphone cue:** Settings → Audio. A controller's 4-output sound card puts the headphones on outputs 3–4. With a plain stereo output, *split* puts the master in mono on the left and the headphones on the right (for a splitter cable).
+- **Keyboard:** `F1` lists every shortcut. Deck 1 is on the left hand (`Z` cue, `X` play, `C` sync, `D` keylock, `1–4` hot cues), deck 2 on the right (`M` cue, `,` play, `.` sync, `J` keylock, `7–0` hot cues).
+- **Headphone cue:** Settings → Audio. A controller's 4-output sound card puts the headphones on outputs 3–4. Or pick a separate device for the headphones (USB headphones, a second sound card). With one plain stereo output, *split* puts the master in mono on the left and the headphones on the right (for a splitter cable).
 - **Controllers:** Settings → MIDI → *Connect*. The DDJ-FLX4 is mapped (from the Mixxx project's open mapping). Anything else: MIDI learn, one control at a time.
 - **Recording:** ● REC records the master and saves a `.webm` file when stopped.
 
@@ -30,7 +33,7 @@ Use Chrome or Edge. Other browsers play too, but they don't remember your music 
 ```
 crates/
   bm-dsp          filters, 3-band isolator EQ, DJ filter, limiter, interpolation (from double-drop)
-  bm-engine       decks, mixer, sync, loops, slip, scratch, beat FX; never allocates while rendering
+  bm-engine       decks, mixer, sync, loops, slip, scratch, keylock (WSOLA), beat FX; never allocates while rendering
   bm-analysis     tempo, beat grid, downbeat, key, loudness, waveform data (from double-drop)
   bm-decode       MP3/FLAC/WAV/AIFF/M4A/Ogg and tags, via Symphonia (from double-drop)
   bm-engine-wasm  the engine for the AudioWorklet (plain C-ABI exports, no wasm-bindgen)

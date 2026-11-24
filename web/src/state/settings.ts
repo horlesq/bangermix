@@ -10,6 +10,13 @@ export type KeyNotation = "camelot" | "musical";
 export interface Settings {
   outputMode: OutputMode;
   sinkId: string;
+  /** The headphones' device in "device" output mode. */
+  phonesSinkId: string;
+  /** Master tempo on for newly loaded tracks. */
+  keylockDefault: boolean;
+  /** Sync lines up bars (downbeats), not just beats. */
+  syncBars: boolean;
+  waveformStyle: "rgb" | "3band";
   bpmMin: number;
   bpmMax: number;
   deckCount: 2 | 4;
@@ -32,6 +39,10 @@ export interface Settings {
 const DEFAULTS: Settings = {
   outputMode: "stereo",
   sinkId: "default",
+  phonesSinkId: "",
+  keylockDefault: false,
+  syncBars: true,
+  waveformStyle: "rgb",
   bpmMin: 88,
   bpmMax: 175,
   deckCount: 2,

@@ -6,12 +6,13 @@ import { masterDeck } from "../state/deck";
 import { mixer, setFx } from "../state/mixer";
 import { settings } from "../state/settings";
 import { HoldButton, Knob } from "./controls";
+import { IconLeft, IconRight } from "./icons";
 
 const EFFECTS = [
-  { id: FX.ECHO, name: "Echo", param: "Feedback" },
-  { id: FX.REVERB, name: "Reverb", param: "Size" },
-  { id: FX.FLANGER, name: "Flanger", param: "Feedback" },
-  { id: FX.ROLL, name: "Roll", param: "—" },
+  { id: FX.ECHO, name: "ECHO", param: "FEEDBACK" },
+  { id: FX.REVERB, name: "REVERB", param: "SIZE" },
+  { id: FX.FLANGER, name: "FLANGER", param: "FEEDBACK" },
+  { id: FX.ROLL, name: "ROLL", param: "—" },
 ];
 const BEATS = [1 / 8, 1 / 4, 1 / 2, 3 / 4, 1, 2, 4];
 
@@ -24,39 +25,46 @@ export function FxPanel() {
   const fx = () => mixer.fx;
   const effect = () => EFFECTS.find((e) => e.id === fx().type) ?? EFFECTS[0];
   const targets = () => [...Array(settings.deckCount).keys(), FX_TARGET_MASTER];
+  const stepBeats = (dir: number) => {
+    const i = Math.max(0, BEATS.indexOf(fx().beats));
+    setFx("beats", BEATS[Math.max(0, Math.min(BEATS.length - 1, i + dir))]);
+  };
+  const ms = () => ((60 / (masterDeck()?.currentBpm() || 120)) * fx().beats * 1000).toFixed(0);
   return (
     <div class="fx">
-      <span class="fx-label">BEAT FX</span>
-      <select value={fx().type} onChange={(e) => setFx("type", Number(e.currentTarget.value))}>
+      <span class="section-label">BEAT FX</span>
+      <select class="fx-select" value={fx().type} onChange={(e) => setFx("type", Number(e.currentTarget.value))}>
         <For each={EFFECTS}>{(e) => <option value={e.id}>{e.name}</option>}</For>
       </select>
-      <div class="seg">
-        <For each={BEATS}>
-          {(b) => (
-            <button classList={{ on: fx().beats === b }} onClick={() => setFx("beats", b)}>
-              {beatLabel(b)}
-            </button>
-          )}
-        </For>
+      <div class="fx-beats">
+        <button class="icon" onClick={() => stepBeats(-1)} title="Shorter">
+          <IconLeft size={12} />
+        </button>
+        <div class="fx-beat-readout">
+          <span>{beatLabel(fx().beats)}</span>
+          <small>{ms()} ms</small>
+        </div>
+        <button class="icon" onClick={() => stepBeats(1)} title="Longer">
+          <IconRight size={12} />
+        </button>
       </div>
       <div class="seg">
         <For each={targets()}>
           {(t) => (
-            <button classList={{ on: fx().target === t }} onClick={() => setFx("target", t)} title="Which channel the effect is on">
+            <button classList={{ on: fx().target === t }} onClick={() => setFx("target", t)} title="Channel the effect is on">
               {t === FX_TARGET_MASTER ? "MST" : t + 1}
             </button>
           )}
         </For>
       </div>
-      <Knob label="LEVEL" value={fx().wet} reset={0.6} size={28} onChange={(v) => setFx("wet", v)} />
-      <Knob label={effect().param.toUpperCase()} value={fx().param} reset={0.5} size={28} onChange={(v) => setFx("param", v)} />
-      <button class="fx-on" classList={{ on: fx().on }} onClick={() => setFx("on", !fx().on)} title="Effect on/off (click)">
+      <Knob label="LEVEL" value={fx().wet} reset={0.6} size={24} onChange={(v) => setFx("wet", v)} />
+      <Knob label={effect().param} value={fx().param} reset={0.5} size={24} onChange={(v) => setFx("param", v)} />
+      <button class="fx-on" classList={{ on: fx().on }} onClick={() => setFx("on", !fx().on)} title="Effect on/off">
         ON
       </button>
       <HoldButton class="fx-hold" onDown={() => setFx("on", true)} onUp={() => setFx("on", false)} title="Effect while held">
         HOLD
       </HoldButton>
-      <span class="fx-bpm">{(masterDeck()?.currentBpm() || 120).toFixed(1)} BPM</span>
     </div>
   );
 }

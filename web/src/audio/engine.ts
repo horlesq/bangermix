@@ -2,12 +2,18 @@
 
 import { DECK_STATE, GLOBAL, GLOBAL_STATE, STATE_LEN } from "./params";
 
-export type OutputMode = "stereo" | "quad" | "split";
+/** stereo: master only; quad: headphones on outputs 3-4; split: mono master left,
+ * mono headphones right; device: headphones on a second output device. */
+export type OutputMode = "stereo" | "quad" | "split" | "device";
 
 export interface AudioOptions {
   sinkId?: string;
   mode: OutputMode;
+  phonesSinkId?: string;
 }
+
+/** Ring size and layout shared with worklet.js (PhonesRing). */
+const PHONES_RING_FRAMES = 16384;
 
 export class AudioEngine {
   readonly ctx: AudioContext;
@@ -18,6 +24,7 @@ export class AudioEngine {
   private flushQueued = false;
   private loadWaiters = new Map<number, () => void>();
   private nextToken = 1;
+  private phones: { ctx: AudioContext; node: AudioWorkletNode } | null = null;
   /** Called on every state message when there is no shared memory. */
   readonly shared: boolean;
 
@@ -59,7 +66,9 @@ export class AudioEngine {
     dest.channelCount = opts.mode === "quad" ? Math.min(4, dest.maxChannelCount) : 2;
     node.connect(dest);
     const state = sab ? new Float64Array(sab) : new Float64Array(STATE_LEN);
-    return new AudioEngine(ctx, node, state, shared);
+    const engine = new AudioEngine(ctx, node, state, shared);
+    if (opts.mode === "device" && opts.phonesSinkId) await engine.startPhones(opts.phonesSinkId);
+    return engine;
   }
 
   /** How many output channels the device offers (4 or more allows headphone cue). */
@@ -67,10 +76,48 @@ export class AudioEngine {
     return this.ctx.destination.maxChannelCount;
   }
 
-  setMode(mode: OutputMode) {
+  setMode(mode: OutputMode, phonesSinkId?: string) {
     const dest = this.ctx.destination;
     dest.channelCount = mode === "quad" ? Math.min(4, dest.maxChannelCount) : 2;
-    this.node.port.postMessage({ type: "mode", mode });
+    this.node.port.postMessage({ type: "mode", mode: mode === "device" ? "stereo" : mode });
+    if (mode === "device" && phonesSinkId) void this.startPhones(phonesSinkId);
+    else void this.stopPhones();
+  }
+
+  /** Plays the headphone mix on a second output device. Needs shared memory. */
+  async startPhones(sinkId: string): Promise<boolean> {
+    await this.stopPhones();
+    if (!this.shared) return false;
+    const ctx = new AudioContext({ latencyHint: "interactive", sampleRate: this.ctx.sampleRate });
+    await setSink(ctx, sinkId);
+    await ctx.audioWorklet.addModule("/worklet.js");
+    const sab = new SharedArrayBuffer(8 + PHONES_RING_FRAMES * 2 * 4);
+    const node = new AudioWorkletNode(ctx, "bangermix-phones", {
+      numberOfInputs: 0,
+      numberOfOutputs: 1,
+      outputChannelCount: [2],
+      processorOptions: { sab },
+    });
+    node.connect(ctx.destination);
+    this.node.port.postMessage({ type: "phones", sab });
+    this.phones = { ctx, node };
+    if (ctx.state !== "running") void ctx.resume();
+    return true;
+  }
+
+  async stopPhones() {
+    if (!this.phones) return;
+    this.node.port.postMessage({ type: "phones", sab: null });
+    const p = this.phones;
+    this.phones = null;
+    p.node.disconnect();
+    await p.ctx.close();
+  }
+
+  /** Resumes both contexts (browsers start them suspended until the page is used). */
+  resume() {
+    if (this.ctx.state !== "running") void this.ctx.resume();
+    if (this.phones && this.phones.ctx.state !== "running") void this.phones.ctx.resume();
   }
 
   async setSink(sinkId: string) {

@@ -1,6 +1,7 @@
 import { Show, createEffect, createSignal, on, onMount } from "solid-js";
 import { enableMidi } from "./midi/midi";
-import { audioReady, startAudio, toast } from "./state/app";
+import { P } from "./audio/params";
+import { audioReady, maybeEngine, startAudio, toast } from "./state/app";
 import { decks } from "./state/deck";
 import { addDropped, foldersNeedingAccess, loadLibrary, reconnect } from "./state/library";
 import { applyAll, applyChannel } from "./state/mixer";
@@ -43,6 +44,10 @@ export function App() {
   });
 
   createEffect(on(audioReady, (ready) => ready && applyAll()));
+  createEffect(() => {
+    const bars = settings.syncBars ? 1 : 0;
+    if (audioReady()) for (const d of decks) maybeEngine()?.set(d.index, P.SYNC_BARS, bars);
+  });
   // Auto gain follows the loaded track.
   for (const d of decks) createEffect(on(d.track, () => applyChannel(d.index)));
 
@@ -59,7 +64,7 @@ export function App() {
       <TopBar openSettings={() => setShowSettings(true)} openHelp={() => setShowHelp(true)} />
       <Show when={foldersNeedingAccess().length > 0}>
         <div class="banner">
-          Your music folders need a click to be readable again (the browser asks each visit):
+          The browser needs a click to read your music folders again:
           {foldersNeedingAccess().map((f) => (
             <button onClick={() => void reconnect(f)}>{f.name}</button>
           ))}
@@ -81,7 +86,7 @@ export function App() {
             <DeckPanel deck={decks[0]} compact />
             <DeckPanel deck={decks[2]} compact />
           </div>
-          <MixerPanel channels={[2, 0, 1, 3]} />
+          <MixerPanel channels={[2, 0, 1, 3]} compact />
           <div class="deck-col">
             <DeckPanel deck={decks[1]} compact />
             <DeckPanel deck={decks[3]} compact />

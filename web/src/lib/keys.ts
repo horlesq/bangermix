@@ -44,6 +44,28 @@ export function parseKey(text: string | undefined): MusicalKey | undefined {
   return { tonic: (base + acc + 12) % 12, minor };
 }
 
+/** The key moved by `semitones` (rounded). */
+export function transpose(k: MusicalKey, semitones: number): MusicalKey {
+  const s = Math.round(semitones);
+  return { ...k, tonic: (((k.tonic + s) % 12) + 12) % 12 };
+}
+
+/** The smallest shift (semitones, -6..6) that puts `k` in `target`'s key or its
+ * relative major/minor. */
+export function shiftToMatch(k: MusicalKey, target: MusicalKey): number {
+  let best = 0;
+  let bestAbs = 99;
+  for (let s = -6; s <= 6; s++) {
+    const c = camelot(transpose(k, s));
+    const t = camelot(target);
+    if (c.number === t.number && Math.abs(s) < bestAbs) {
+      best = s;
+      bestAbs = Math.abs(s);
+    }
+  }
+  return best;
+}
+
 /** 0 (clash) to 1 (same key), following the Camelot wheel. */
 export function compatibility(a: MusicalKey, b: MusicalKey): number {
   const ca = camelot(a);

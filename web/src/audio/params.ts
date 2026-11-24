@@ -27,6 +27,9 @@ export const P = {
   VOLUME: 20,
   CUE: 21,
   ALIGN: 22,
+  KEYLOCK: 23,
+  KEY_SHIFT: 24,
+  SYNC_BARS: 25,
 } as const;
 
 export const G = {
@@ -65,6 +68,7 @@ export const S = {
   TEMPO: 12,
   GENERATION: 13,
   PHASE: 14,
+  PITCH: 15,
 } as const;
 
 export const SG = {

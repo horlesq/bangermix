@@ -2,8 +2,10 @@ import { Show, createSignal, onCleanup } from "solid-js";
 import { startRecording, type Recording } from "../audio/recorder";
 import { midiDevices, midiState } from "../midi/midi";
 import { audioError, audioReady, audioRunning, maybeEngine } from "../state/app";
+import { masterDeck } from "../state/deck";
 import { settings, setSettings } from "../state/settings";
 import { FxPanel } from "./FxPanel";
+import { IconGear, IconHelp, IconRecord } from "./icons";
 
 export function TopBar(p: { openSettings: () => void; openHelp: () => void }) {
   const [rec, setRec] = createSignal<Recording | null>(null);
@@ -27,27 +29,35 @@ export function TopBar(p: { openSettings: () => void; openHelp: () => void }) {
     const s = Math.floor((now() - r.startedAt) / 1000);
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
   };
+  const clock = () => new Date(now()).toTimeString().slice(0, 5);
 
   return (
     <div class="topbar">
-      <div class="logo">
-        banger<span>mix</span>
+      <div class="brand">
+        <span class="brand-mark" />
+        BANGERMIX
+      </div>
+      <div class="master-bpm" title="Master tempo">
+        <span class="section-label">MASTER</span>
+        <span class="value">{masterDeck()?.currentBpm() ? masterDeck()!.currentBpm().toFixed(2) : "---.--"}</span>
       </div>
       <FxPanel />
       <div class="spacer" />
       <Show when={audioError()}>
-        <span class="status warn" title={audioError()!}>
-          audio failed
+        <span class="pill warn" title={audioError()!}>
+          AUDIO ERROR
         </span>
       </Show>
       <Show when={audioReady() && !audioRunning()}>
-        <span class="status warn">click anywhere to start audio</span>
+        <span class="pill warn">CLICK TO START AUDIO</span>
       </Show>
-      <Show when={midiState() === "on"}>
-        <span class="status" title={midiDevices().map((d) => `${d.name}: ${d.preset ?? "MIDI learn"}`).join("\n")}>
-          MIDI {midiDevices().length ? `· ${midiDevices().length}` : ""}
-        </span>
-      </Show>
+      <span
+        class="pill"
+        classList={{ lit: midiState() === "on" && midiDevices().length > 0 }}
+        title={midiDevices().map((d) => `${d.name}: ${d.preset ?? "MIDI learn"}`).join("\n") || "No controller (Settings → MIDI)"}
+      >
+        MIDI
+      </span>
       <div class="seg">
         <button classList={{ on: settings.deckCount === 2 }} onClick={() => setSettings("deckCount", 2)}>
           2 DECK
@@ -56,14 +66,16 @@ export function TopBar(p: { openSettings: () => void; openHelp: () => void }) {
           4 DECK
         </button>
       </div>
-      <button class="rec" classList={{ on: !!rec() }} onClick={toggleRec} title="Record the master output">
-        ● {recTime()}
+      <button class="rec-btn" classList={{ on: !!rec() }} onClick={toggleRec} title="Record the master output">
+        <IconRecord size={12} />
+        {recTime()}
       </button>
-      <button onClick={p.openHelp} title="Keyboard shortcuts (F1)">
-        ?
+      <span class="clock">{clock()}</span>
+      <button class="icon" onClick={p.openHelp} title="Shortcuts (F1)">
+        <IconHelp />
       </button>
-      <button onClick={p.openSettings} title="Settings">
-        ⚙
+      <button class="icon" onClick={p.openSettings} title="Settings">
+        <IconGear />
       </button>
     </div>
   );

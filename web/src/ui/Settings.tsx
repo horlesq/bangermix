@@ -3,7 +3,7 @@ import { outputDevices, type OutputMode } from "../audio/engine";
 import { ACTIONS } from "../midi/actions";
 import { enableMidi, forget, learned, learning, lastMessage, midiDevices, midiState, setLearning } from "../midi/midi";
 import { maybeEngine } from "../state/app";
-import { reanalyse, tracks } from "../state/library";
+import { type ImportReport, importRekordbox, reanalyse, tracks } from "../state/library";
 import { applyAll } from "../state/mixer";
 import { type CrossfaderCurve, settings, setSettings } from "../state/settings";
 
@@ -57,7 +57,7 @@ function AudioSettings() {
   };
   const setMode = (m: OutputMode) => {
     setSettings("outputMode", m);
-    maybeEngine()?.setMode(m);
+    maybeEngine()?.setMode(m, settings.phonesSinkId);
   };
   return (
     <div class="form">
@@ -96,6 +96,27 @@ function AudioSettings() {
             <input type="radio" checked={settings.outputMode === "split"} onChange={() => setMode("split")} />
             Split: master in mono on the left, headphones on the right (splitter cable)
           </label>
+          <label>
+            <input type="radio" checked={settings.outputMode === "device"} onChange={() => setMode("device")} />
+            Separate device for the headphones (e.g. USB headphones or a second sound card)
+          </label>
+          <Show when={settings.outputMode === "device"}>
+            <label class="sub">
+              Headphones device
+              <select
+                value={settings.phonesSinkId}
+                onChange={(ev) => {
+                  setSettings("phonesSinkId", ev.currentTarget.value);
+                  maybeEngine()?.setMode("device", ev.currentTarget.value);
+                }}
+              >
+                <option value="">Choose…</option>
+                <For each={devices() ?? []}>
+                  {(d, i) => <option value={d.deviceId}>{d.label || `Output ${i() + 1}`}</option>}
+                </For>
+              </select>
+            </label>
+          </Show>
         </div>
       </div>
       <p class="note">
@@ -156,6 +177,21 @@ function DeckSettings() {
         Auto gain: level tracks to the same loudness
       </label>
       <label>
+        <input type="checkbox" checked={settings.syncBars} onChange={(e) => setSettings("syncBars", e.currentTarget.checked)} />
+        Sync lines up bars (downbeats land together), not just beats
+      </label>
+      <label>
+        <input type="checkbox" checked={settings.keylockDefault} onChange={(e) => setSettings("keylockDefault", e.currentTarget.checked)} />
+        Master tempo (keylock) on when the app starts
+      </label>
+      <label>
+        Waveforms
+        <select value={settings.waveformStyle} onChange={(e) => setSettings("waveformStyle", e.currentTarget.value as "rgb")}>
+          <option value="rgb">RGB (colour by frequency)</option>
+          <option value="3band">3-band</option>
+        </select>
+      </label>
+      <label>
         Key notation
         <select value={settings.keyNotation} onChange={(e) => setSettings("keyNotation", e.currentTarget.value as "camelot")}>
           <option value="camelot">Camelot (8A)</option>
@@ -167,8 +203,61 @@ function DeckSettings() {
 }
 
 function LibrarySettings() {
+  const [report, setReport] = createSignal<ImportReport | null>(null);
+  const [error, setError] = createSignal("");
+  const [busy, setBusy] = createSignal(false);
+  let input!: HTMLInputElement;
+  const importFile = async (file: File) => {
+    setBusy(true);
+    setError("");
+    setReport(null);
+    try {
+      setReport(await importRekordbox(await file.text()));
+    } catch (e) {
+      setError(String((e as Error).message ?? e));
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <div class="form">
+      <div class="field">
+        <span>rekordbox</span>
+        <div>
+          <button disabled={busy()} onClick={() => input.click()}>
+            {busy() ? "IMPORTING…" : "IMPORT REKORDBOX.XML"}
+          </button>
+          <input
+            ref={input}
+            type="file"
+            accept=".xml"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const f = e.currentTarget.files?.[0];
+              if (f) void importFile(f);
+              e.currentTarget.value = "";
+            }}
+          />
+        </div>
+      </div>
+      <p class="note">
+        In rekordbox: File → Export Collection in xml format. Beat grids, keys, hot cues, memory cues, loops, ratings and
+        playlists come across. Add the music folders here first: tracks are matched by file name and size.
+      </p>
+      <Show when={error()}>
+        <p class="note warn">{error()}</p>
+      </Show>
+      <Show when={report()}>
+        <p class="note">
+          Matched {report()!.matched} of {report()!.inXml} tracks, {report()!.playlists} playlists.
+          <Show when={report()!.missingCount > 0}>
+            {" "}
+            Not in the library ({report()!.missingCount}): {report()!.missing.join(", ")}
+            {report()!.missingCount > report()!.missing.length ? "…" : ""}
+          </Show>
+        </p>
+      </Show>
+      <hr />
       <label>
         BPM range for analysis
         <input

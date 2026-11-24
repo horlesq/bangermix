@@ -43,6 +43,12 @@ pub const VOLUME: u32 = 20;
 pub const CUE: u32 = 21;
 /// Line the deck's beats up with the master now (a one-off, value ignored).
 pub const ALIGN: u32 = 22;
+/// 1 keeps the pitch when the tempo changes (master tempo).
+pub const KEYLOCK: u32 = 23;
+/// Key shift in semitones, -12 to 12.
+pub const KEY_SHIFT: u32 = 24;
+/// 1: sync lines up bars (downbeats with downbeats); 0: beats only.
+pub const SYNC_BARS: u32 = 25;
 
 // Global parameters.
 pub const G_MASTER_GAIN: u32 = 0;
@@ -76,8 +82,10 @@ pub const S_SLIPPING: usize = 11;
 pub const S_TEMPO: usize = 12;
 /// Counts loads, so the interface knows which track the values are about.
 pub const S_GENERATION: usize = 13;
-/// How far the deck's beats are off the master's, in beats.
+/// How far the deck is off the master (in beats), when synced.
 pub const S_PHASE: usize = 14;
+/// The pitch heard, 1 = the track's own.
+pub const S_PITCH: usize = 15;
 
 // Global state, after the decks.
 pub const S_MASTER_PEAK_L: usize = 0;

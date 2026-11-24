@@ -7,3 +7,7 @@ publish.workspace = true
 
 [dependencies]
 bm-dsp.workspace = true
+
+[dev-dependencies]
+bm-decode.workspace = true
+bm-analysis.workspace = true

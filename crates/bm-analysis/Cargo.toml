@@ -8,3 +8,6 @@ publish.workspace = true
 [dependencies]
 bm-dsp.workspace = true
 rustfft.workspace = true
+
+[dev-dependencies]
+bm-decode.workspace = true

@@ -26,16 +26,19 @@ export function maybeEngine(): AudioEngine | null {
 
 export async function startAudio() {
   try {
-    engineRef = await AudioEngine.start({ mode: settings.outputMode, sinkId: settings.sinkId });
+    engineRef = await AudioEngine.start({
+      mode: settings.outputMode,
+      sinkId: settings.sinkId,
+      phonesSinkId: settings.phonesSinkId,
+    });
     setAudioReady(true);
     const ctx = engineRef.ctx;
     const update = () => setAudioRunning(ctx.state === "running");
     ctx.onstatechange = update;
     update();
     // Browsers start audio suspended until the page is used.
-    const resume = () => {
-      if (ctx.state !== "running") void ctx.resume();
-    };
+    const engine = engineRef;
+    const resume = () => engine.resume();
     window.addEventListener("pointerdown", resume, true);
     window.addEventListener("keydown", resume, true);
   } catch (e) {

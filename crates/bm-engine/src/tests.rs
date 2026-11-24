@@ -231,3 +231,144 @@ fn headphones_hear_the_cued_deck_with_its_fader_down() {
     assert!(rms(&phones[10_000..]) > 0.2);
     assert!(rms(&a) < 1e-4);
 }
+
+/// Frequency from zero crossings.
+fn freq(x: &[f32]) -> f64 {
+    let crossings = x.windows(2).filter(|w| w[0] <= 0.0 && w[1] > 0.0).count();
+    crossings as f64 / (x.len() as f64 / SR)
+}
+
+#[test]
+fn keylock_keeps_the_pitch_at_a_faster_tempo() {
+    let mut e = Engine::new(SR);
+    load(&mut e, 0, sine(44_100.0, 30.0, 440.0));
+    e.set(0, param::TEMPO, 1.06);
+    e.set(0, param::PLAY, 1.0);
+    let plain = run(&mut e, 1.0);
+    assert!((freq(&plain[4800..]) - 440.0 * 1.06).abs() < 4.0);
+    e.set(0, param::KEYLOCK, 1.0);
+    let locked = run(&mut e, 2.0);
+    let f = freq(&locked[9600..]);
+    assert!((f - 440.0).abs() < 4.0, "{f} Hz");
+    assert!((e.deck_state(0, param::S_PITCH) - 1.0).abs() < 1e-9);
+    // The tempo still moves the deck on at 1.06.
+    assert!((e.deck_state(0, param::S_POS) - 3.0 * 1.06).abs() < 0.01);
+}
+
+#[test]
+fn key_shift_changes_the_pitch_only() {
+    let mut e = Engine::new(SR);
+    load(&mut e, 0, sine(SR, 30.0, 440.0));
+    e.set(0, param::KEY_SHIFT, -1.0);
+    e.set(0, param::PLAY, 1.0);
+    let out = run(&mut e, 2.0);
+    let f = freq(&out[9600..]);
+    let want = 440.0 * 2f64.powf(-1.0 / 12.0);
+    assert!((f - want).abs() < 4.0, "{f} Hz, want {want}");
+    assert!((e.deck_state(0, param::S_POS) - 2.0).abs() < 0.01);
+}
+
+#[test]
+fn loops_and_jumps_work_with_keylock() {
+    let mut e = Engine::new(SR);
+    load(&mut e, 0, sine(SR, 30.0, 440.0));
+    e.set(0, param::KEYLOCK, 1.0);
+    e.set(0, param::TEMPO, 0.95);
+    e.set(0, param::LOOP_IN, 1.0);
+    e.set(0, param::LOOP_OUT, 2.0);
+    e.set(0, param::SEEK, 1.2);
+    e.set(0, param::LOOP_ON, 1.0);
+    e.set(0, param::PLAY, 1.0);
+    for _ in 0..10 {
+        let out = run(&mut e, 0.5);
+        let pos = e.deck_state(0, param::S_POS);
+        assert!((1.0..2.0).contains(&pos), "{pos}");
+        assert!(rms(&out) > 0.3, "no dropouts");
+    }
+}
+
+/// `cargo test --release -p bm-engine -- --ignored --nocapture keylock_cost`
+#[test]
+#[ignore]
+fn keylock_cost() {
+    let mut e = Engine::new(SR);
+    for d in 0..4 {
+        load(&mut e, d, sine(44_100.0, 60.0, 220.0 + 50.0 * d as f64));
+        e.set(d, param::KEYLOCK, 1.0);
+        e.set(d, param::TEMPO, 1.04);
+        e.set(d, param::PLAY, 1.0);
+    }
+    let t = std::time::Instant::now();
+    run(&mut e, 20.0);
+    let s = t.elapsed().as_secs_f64();
+    for d in 0..4 {
+        e.set(d, param::KEYLOCK, 0.0);
+    }
+    let t2 = std::time::Instant::now();
+    run(&mut e, 20.0);
+    let s2 = t2.elapsed().as_secs_f64();
+    println!(
+        "4 plain decks: {:.1} ms per second of audio",
+        s2 / 20.0 * 1e3
+    );
+    println!(
+        "4 keylocked decks: {:.1} ms per second of audio ({:.1}% of one core)",
+        s / 20.0 * 1e3,
+        s / 20.0 * 100.0
+    );
+}
+
+#[test]
+fn sync_lines_up_downbeats() {
+    let mut e = Engine::new(SR);
+    // Same tempo; the second track's downbeat is one beat later in its file.
+    let beat = 60.0 / 174.0;
+    load(&mut e, 0, clicks(SR, 60.0, beat, 0.2));
+    load(&mut e, 1, clicks(SR, 60.0, beat, 0.2 + beat));
+    e.set(0, param::BEAT, beat);
+    e.set(0, param::ANCHOR, 0.2);
+    e.set(1, param::BEAT, beat);
+    e.set(1, param::ANCHOR, 0.2 + beat);
+    e.set(0, param::MASTER, 1.0);
+    e.set(0, param::PLAY, 1.0);
+    // Started on the same file position, deck 2 sits one beat off in its bar.
+    e.set(1, param::SYNC, 1.0);
+    e.set(1, param::PLAY, 1.0);
+    run(&mut e, 4.0);
+    let bar_pos = |deck: usize, anchor: f64| {
+        ((e.deck_state(deck, param::S_POS) - anchor) / beat).rem_euclid(4.0)
+    };
+    let d = (bar_pos(0, 0.2) - bar_pos(1, 0.2 + beat) + 2.0).rem_euclid(4.0) - 2.0;
+    assert!(d.abs() < 0.01, "{d} beats apart in the bar");
+}
+
+#[test]
+fn a_synced_deck_lands_on_the_beat_after_a_jump() {
+    let mut e = Engine::new(SR);
+    let beat = 60.0 / 174.0;
+    load(&mut e, 0, clicks(SR, 60.0, beat, 0.2));
+    load(&mut e, 1, clicks(SR, 60.0, beat, 0.2));
+    for d in 0..2 {
+        e.set(d, param::BEAT, beat);
+        e.set(d, param::ANCHOR, 0.2);
+    }
+    e.set(0, param::MASTER, 1.0);
+    e.set(0, param::PLAY, 1.0);
+    e.set(1, param::SYNC, 1.0);
+    e.set(1, param::PLAY, 1.0);
+    run(&mut e, 2.0);
+    // Jump a third of a beat off, then one whole beat: the first is corrected at
+    // once, the second kept (beats line up, the bar position moves).
+    e.set(1, param::SEEK, e.deck_state(1, param::S_POS) + beat / 3.0);
+    run(&mut e, 0.05);
+    assert!(e.deck_state(1, param::S_PHASE).abs() < 0.01);
+    let before = e.deck_state(1, param::S_POS);
+    e.set(1, param::SEEK, before + beat);
+    run(&mut e, 3.0);
+    let beat_in_bar = |d: usize| ((e.deck_state(d, param::S_POS) - 0.2) / beat).rem_euclid(4.0);
+    let off = (beat_in_bar(1) - beat_in_bar(0)).rem_euclid(4.0);
+    assert!(
+        (off - 1.0).abs() < 0.02,
+        "deck 2 is {off} beats on in the bar"
+    );
+}

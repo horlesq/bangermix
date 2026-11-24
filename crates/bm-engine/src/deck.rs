@@ -1,6 +1,7 @@
 //! A deck and its mixer channel.
 
 use crate::param::*;
+use crate::stretch::Stretcher;
 use bm_dsp::{sample_at, DjFilter, Isolator, Smoothed};
 
 /// Jumps (seeks, loop wraps) crossfade from the old place to the new over this long.
@@ -60,7 +61,8 @@ impl Track {
 pub struct MasterClock {
     /// Beats per minute as heard (0 when there is no master).
     pub bpm: f64,
-    /// Where the master is within its beat, 0 to 1.
+    /// Where the master is within its bar, in beats: 0 to 4 (its grid's anchor is a
+    /// downbeat).
     pub phase: f64,
     pub playing: bool,
 }
@@ -103,8 +105,12 @@ pub struct Deck {
     beat_s: f64,
     anchor_s: f64,
     sync: bool,
+    /// Sync lines up bars, not just beats.
+    sync_bars: bool,
     pub master: bool,
-    align_pending: bool,
+    /// A one-off jump into phase with the master is due: within this many beats
+    /// (4 = line up bars, 1 = line up beats), or 0 for none.
+    align: f64,
     tempo_eff: f64,
     phase_err: f64,
     /// Track frames per output frame this block.
@@ -126,6 +132,17 @@ pub struct Deck {
     pub cue: bool,
     pub peak: [f32; 2],
     scratch_alpha: f64,
+    /// Master tempo: the pitch stays put when the tempo changes.
+    keylock: bool,
+    /// Key shift in semitones.
+    key_shift: f64,
+    stretcher: Stretcher,
+    /// Whether the stretcher makes the sound now, and the track frames per output
+    /// frame it reads grains at.
+    stretching: bool,
+    read_step: f64,
+    /// Frames left of the fade from stretched to plain playback.
+    unstretch_fade: u32,
 }
 
 impl Deck {
@@ -152,8 +169,9 @@ impl Deck {
             beat_s: 0.0,
             anchor_s: 0.0,
             sync: false,
+            sync_bars: true,
             master: false,
-            align_pending: false,
+            align: 0.0,
             tempo_eff: 1.0,
             phase_err: 0.0,
             step: 0.0,
@@ -173,6 +191,12 @@ impl Deck {
             cue: false,
             peak: [0.0; 2],
             scratch_alpha: 0.1,
+            keylock: false,
+            key_shift: 0.0,
+            stretcher: Stretcher::new(out_rate),
+            stretching: false,
+            read_step: 1.0,
+            unstretch_fade: 0,
         }
     }
 
@@ -218,7 +242,7 @@ impl Deck {
             PLAY => {
                 let play = on && self.track.is_some();
                 if play && !self.playing && self.sync {
-                    self.align_pending = true;
+                    self.align = self.bar_unit();
                 }
                 self.playing = play;
             }
@@ -226,6 +250,11 @@ impl Deck {
                 let to = value.max(0.0) * self.rate();
                 self.jump_to(to);
                 self.slip_pos = to;
+                // A synced deck that jumps lands back on the master's beat at once
+                // (whole-beat jumps keep their place in the bar).
+                if self.sync && self.align == 0.0 {
+                    self.align = 1.0;
+                }
             }
             TEMPO => self.tempo = value.clamp(0.0, 4.0),
             BEND => self.bend = value.clamp(-1.0, 1.0),
@@ -258,11 +287,12 @@ impl Deck {
             ANCHOR => self.anchor_s = value,
             SYNC => {
                 if on && !self.sync {
-                    self.align_pending = true;
+                    self.align = self.bar_unit();
                 }
                 self.sync = on;
             }
             MASTER => self.master = on,
+            SYNC_BARS => self.sync_bars = on,
             TRIM => self.trim.target = value as f32,
             EQ_LOW => self.eq[0].target = value as f32,
             EQ_MID => self.eq[1].target = value as f32,
@@ -270,23 +300,36 @@ impl Deck {
             FILTER => self.filter_pos = value as f32,
             VOLUME => self.volume.target = value as f32,
             CUE => self.cue = on,
-            ALIGN => self.align_pending = true,
+            ALIGN => self.align = self.bar_unit(),
+            KEYLOCK => self.keylock = on,
+            KEY_SHIFT => self.key_shift = value.clamp(-12.0, 12.0),
             _ => {}
+        }
+    }
+
+    fn bar_unit(&self) -> f64 {
+        if self.sync_bars {
+            4.0
+        } else {
+            1.0
         }
     }
 
     /// Moves to `to` (track frames), crossfading if the deck is sounding.
     fn jump_to(&mut self, to: f64) {
-        if self.play_gain > 0.0 {
+        if self.stretching {
+            // The stretcher's grains crossfade the jump themselves.
+            self.stretcher.force_grain();
+        } else if self.play_gain > 0.0 {
             self.xf_pos = self.pos;
             self.xf_left = self.xf_len;
         }
         self.pos = to;
     }
 
-    /// Where the deck is within its beat, 0 to 1.
-    fn beat_phase(&self) -> f64 {
-        ((self.pos / self.rate() - self.anchor_s) / self.beat_s).rem_euclid(1.0)
+    /// Where the deck is within its bar, in beats: 0 to 4.
+    fn bar_phase(&self) -> f64 {
+        ((self.pos / self.rate() - self.anchor_s) / self.beat_s).rem_euclid(4.0)
     }
 
     pub fn clock(&self) -> MasterClock {
@@ -297,7 +340,7 @@ impl Deck {
         };
         MasterClock {
             bpm: 60.0 / self.beat_s * speed,
-            phase: self.beat_phase(),
+            phase: self.bar_phase(),
             playing: self.playing && !self.scratching,
         }
     }
@@ -332,10 +375,16 @@ impl Deck {
             .unwrap_or(ratio_to_master);
             self.tempo_eff = tempo;
             if tempo == ratio_to_master {
-                let e = (clock.phase - self.beat_phase() + 0.5).rem_euclid(1.0) - 0.5;
+                // How far behind the master this deck is, in beats, within `unit`
+                // beats: a bar when sync engages (downbeats together), a beat after
+                // that (so a deliberate beat jump stays where it was put).
+                let gap = clock.phase - self.bar_phase();
+                let behind = |unit: f64| (gap + unit / 2.0).rem_euclid(unit) - unit / 2.0;
+                let e = behind(1.0);
                 self.phase_err = e;
-                if self.align_pending && clock.playing {
-                    self.jump_to(self.pos + e * self.beat_s * rate);
+                if self.align > 0.0 && clock.playing {
+                    let jump = behind(self.align);
+                    self.jump_to(self.pos + jump * self.beat_s * rate);
                     self.phase_err = 0.0;
                 } else if self.playing && clock.playing && !self.scratching {
                     correction = (e * self.beat_s / SYNC_CORRECT_S)
@@ -343,7 +392,7 @@ impl Deck {
                 }
             }
         }
-        self.align_pending = false;
+        self.align = 0.0;
 
         self.scratch_alpha = 1.0 - (-block_s / SCRATCH_SMOOTH_S).exp();
         let speed = if self.scratching {
@@ -363,6 +412,20 @@ impl Deck {
         if self.playing || self.scratching {
             self.coast_step = self.step;
         }
+
+        // Keylock and key shift: stretched playback whenever the deck plays forward
+        // on its own (scratching and reverse sound like a record, as they should).
+        let shift = 2f64.powf(self.key_shift / 12.0);
+        let stretch = (self.keylock || self.key_shift != 0.0) && !self.scratching && speed > 0.0;
+        let pitch = if self.keylock { shift } else { speed * shift };
+        self.read_step = ratio * pitch;
+        if stretch && !self.stretching {
+            self.stretcher.reset(self.pos, self.read_step);
+            self.xf_left = 0;
+        } else if !stretch && self.stretching {
+            self.unstretch_fade = self.xf_len;
+        }
+        self.stretching = stretch;
         self.slip_step = if self.playing {
             self.tempo_eff * ratio
         } else {
@@ -381,12 +444,29 @@ impl Deck {
         let step = if active { self.step } else { self.coast_step };
         let (mut l, mut r, total, rate) = {
             let t = self.track.as_ref()?;
-            let mut l = sample_at(&t.left, self.pos);
-            let mut r = sample_at(&t.right, self.pos);
-            if self.xf_left > 0 {
-                let w = self.xf_left as f32 / self.xf_len as f32;
-                l = l * (1.0 - w) + sample_at(&t.left, self.xf_pos) * w;
-                r = r * (1.0 - w) + sample_at(&t.right, self.xf_pos) * w;
+            let (mut l, mut r);
+            if self.stretching {
+                (l, r) = self
+                    .stretcher
+                    .next(&t.left, &t.right, self.pos, self.read_step);
+            } else {
+                l = sample_at(&t.left, self.pos);
+                r = sample_at(&t.right, self.pos);
+                if self.xf_left > 0 {
+                    let w = self.xf_left as f32 / self.xf_len as f32;
+                    l = l * (1.0 - w) + sample_at(&t.left, self.xf_pos) * w;
+                    r = r * (1.0 - w) + sample_at(&t.right, self.xf_pos) * w;
+                }
+                if self.unstretch_fade > 0 {
+                    // Back to plain playback: fade out of the stretched sound.
+                    let w = self.unstretch_fade as f32 / self.xf_len as f32;
+                    let (sl, sr) = self
+                        .stretcher
+                        .next(&t.left, &t.right, self.pos, self.read_step);
+                    l = l * (1.0 - w) + sl * w;
+                    r = r * (1.0 - w) + sr * w;
+                    self.unstretch_fade -= 1;
+                }
             }
             (l, r, t.total as f64, t.rate)
         };
@@ -468,5 +548,10 @@ impl Deck {
         s[S_TEMPO] = self.tempo_eff;
         s[S_GENERATION] = self.generation as f64;
         s[S_PHASE] = self.phase_err;
+        s[S_PITCH] = if self.stretching {
+            self.read_step / (rate / self.out_rate)
+        } else {
+            s[S_SPEED].abs()
+        };
     }
 }

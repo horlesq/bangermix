@@ -12,6 +12,7 @@
 mod deck;
 pub mod fx;
 pub mod param;
+mod stretch;
 
 use bm_dsp::{Limiter, Smoothed};
 pub use deck::Track;

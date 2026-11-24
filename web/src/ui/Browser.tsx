@@ -31,6 +31,7 @@ import {
 import { settings } from "../state/settings";
 import { TRACK_MIME } from "./dnd";
 import { deckColor } from "./theme";
+import { IconClose, IconCollection, IconFolder, IconPlaylist, IconPlus, IconRefresh, IconSearch, IconUnlink, IconWarn } from "./icons";
 import { formatTime } from "./wave";
 
 const ROW = 26;
@@ -71,28 +72,30 @@ function Sidebar() {
   return (
     <div class="sidebar">
       <div class="side-item" classList={{ active: isView("collection") }} onClick={() => setView({ kind: "collection" })}>
-        <span>Collection</span>
+        <IconCollection size={13} />
+        <span class="name">Collection</span>
         <span class="count">{tracks().length}</span>
       </div>
 
       <div class="side-head">
-        <span>Folders</span>
+        <span>FOLDERS</span>
         <Show
           when={canPickFolders}
           fallback={
-            <button class="mini" onClick={() => fileInput.click()} title="Add music files">
-              +
+            <button class="icon mini" onClick={() => fileInput.click()} title="Add music files">
+              <IconPlus size={12} />
             </button>
           }
         >
-          <button class="mini" onClick={() => addFolder().catch(() => {})} title="Add a music folder">
-            +
+          <button class="icon mini" onClick={() => addFolder().catch(() => {})} title="Add a music folder">
+            <IconPlus size={12} />
           </button>
         </Show>
       </div>
       <For each={folders()}>
         {(f) => (
           <div class="side-item" classList={{ active: isView("folder", f.id) }} onClick={() => setView({ kind: "folder", id: f.id })}>
+            <IconFolder size={13} />
             <span class="name">{f.name}</span>
             <Show when={f.handle && foldersNeedingAccess().some((x) => x.id === f.id)}>
               <button
@@ -103,7 +106,7 @@ function Sidebar() {
                 }}
                 title="The browser needs your OK to read this folder again"
               >
-                reconnect
+                RECONNECT
               </button>
             </Show>
             <Show when={f.handle}>
@@ -115,7 +118,7 @@ function Sidebar() {
                 }}
                 title="Look for new files"
               >
-                ⟳
+                <IconRefresh size={12} />
               </button>
             </Show>
             <button
@@ -126,7 +129,7 @@ function Sidebar() {
               }}
               title="Remove from the library"
             >
-              ×
+              <IconClose size={11} />
             </button>
           </div>
         )}
@@ -145,9 +148,9 @@ function Sidebar() {
       />
 
       <div class="side-head">
-        <span>Playlists</span>
-        <button class="mini" onClick={newPlaylist} title="New playlist">
-          +
+        <span>PLAYLISTS</span>
+        <button class="icon mini" onClick={newPlaylist} title="New playlist">
+          <IconPlus size={12} />
         </button>
       </div>
       <For each={playlists()}>
@@ -165,6 +168,7 @@ function Sidebar() {
               if (id) void addToPlaylist(p, [id]).then(() => notify(`Added to ${p.name}`));
             }}
           >
+            <IconPlaylist size={13} />
             <span class="name">{p.name}</span>
             <span class="count">{p.trackIds.length}</span>
             <button
@@ -173,8 +177,9 @@ function Sidebar() {
                 e.stopPropagation();
                 if (confirm(`Delete the playlist ${p.name}?`)) void deletePlaylist(p);
               }}
+              title="Delete playlist"
             >
-              ×
+              <IconClose size={11} />
             </button>
           </div>
         )}
@@ -263,10 +268,14 @@ function TrackTable() {
             )}
           </For>
           <Show when={!isAvailable(t)}>
-            <span class="status" title="Not reachable now: reconnect its folder or drop the file in again">⊘</span>
+            <span class="status" title="Not reachable now: reconnect its folder or drop the file in again">
+              <IconUnlink size={11} />
+            </span>
           </Show>
           <Show when={t.analysisError}>
-            <span class="status warn" title={t.analysisError}>!</span>
+            <span class="status warn" title={t.analysisError}>
+              <IconWarn size={11} />
+            </span>
           </Show>
           {t.title}
         </span>
@@ -278,7 +287,7 @@ function TrackTable() {
       label: "BPM",
       width: "62px",
       cell: (t) => (
-        <span classList={{ match: bpmMatch(t), pending: needsAnalysis(t) }}>
+        <span class="num-cell" classList={{ match: bpmMatch(t), pending: needsAnalysis(t) }}>
           {t.bpm ? t.bpm.toFixed(t.bpm % 1 ? 2 : 0) : t.tagBpm ? `${t.tagBpm}*` : needsAnalysis(t) ? "…" : ""}
         </span>
       ),
@@ -349,9 +358,10 @@ function TrackTable() {
   return (
     <div class="tracks">
       <div class="tracks-bar">
+        <IconSearch size={13} />
         <input
           class="search"
-          placeholder="Search title, artist, key (8A), BPM…"
+          placeholder="Search  (title, artist, key 8A, BPM)"
           value={search()}
           onInput={(e) => setSearch(e.currentTarget.value)}
           onKeyDown={(e) => {
@@ -361,10 +371,10 @@ function TrackTable() {
             }
           }}
         />
-        <span class="count">{visible().length} tracks</span>
+        <span class="count">{visible().length} TRACKS</span>
         <Show when={view().kind === "playlist"}>
           <button class="mini" onClick={() => setSort({ key: "order", dir: 1 })} classList={{ on: sort().key === "order" }}>
-            playlist order
+            PLAYLIST ORDER
           </button>
         </Show>
       </div>
@@ -387,7 +397,7 @@ function TrackTable() {
             {(t, i) => (
               <div
                 class="trow"
-                classList={{ sel: selected() === t.id, missing: !isAvailable(t) }}
+                classList={{ sel: selected() === t.id, missing: !isAvailable(t), odd: (range().start + i()) % 2 === 1 }}
                 style={{ top: `${(range().start + i()) * ROW}px`, "grid-template-columns": template }}
                 draggable={true}
                 onDragStart={(e) => {
@@ -452,18 +462,13 @@ function RowMenu(p: { x: number; y: number; track: TrackRec; close: () => void }
 
 function EmptyLibrary() {
   return (
-    <div class="empty">
-      <h2>Bring your music</h2>
-      <Show
-        when={canPickFolders}
-        fallback={<p>Drop audio files anywhere on this window, or use + next to Folders.</p>}
-      >
-        <p>Pick your music folder, or drop files and folders anywhere on this window.</p>
-        <button class="big" onClick={() => addFolder().catch(() => {})}>
-          Add a music folder
-        </button>
+    <div class="empty-library">
+      <div class="empty-title">No tracks</div>
+      <Show when={canPickFolders} fallback={<p>Drop audio files on this window, or use + next to Folders.</p>}>
+        <p>Add your music folder, or drop files and folders on this window.</p>
+        <button onClick={() => addFolder().catch(() => {})}>ADD MUSIC FOLDER</button>
       </Show>
-      <p class="hint">MP3, FLAC, WAV, AIFF, M4A and Ogg. Nothing is uploaded: the files stay on this computer.</p>
+      <p class="hint">MP3 · FLAC · WAV · AIFF · M4A · OGG — files stay on this computer.</p>
     </div>
   );
 }

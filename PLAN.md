@@ -4,7 +4,7 @@ A DJ app that runs in the browser, laid out like a classic performance screen: d
 
 - **Name:** bangermix, at **bangermix.horly.dev**
 - **For:** the owner, on Chrome on Windows. Other browsers work where they can.
-- **Status (24 November 2026):** phases 0–6, 8 and most of 9 built, and tested in headless Chrome with generated tracks. Keylock (phase 7), a real-hardware test and the first deploy are next.
+- **Status (24 November 2026):** every phase built, plus headphones on a second device, rekordbox XML import, offline use and a redesigned interface. Tested in headless Chrome with generated tracks; CI passes on GitHub. A real-hardware test and the first deploy are next.
 
 ## Decided
 | | Decision |
@@ -15,7 +15,7 @@ A DJ app that runs in the browser, laid out like a classic performance screen: d
 | Input | Mouse and keyboard fully; MIDI controllers through presets and MIDI learn. |
 | Files | MP3, WAV, FLAC, AIFF, M4A/AAC, Ogg. Pick a folder, or drop files and folders. |
 | Library import | Later (Rekordbox XML first). |
-| Look | A familiar layout with its own identity: violet / hot pink / ice waveforms, its own colours and logo, no third-party branding. |
+| Look | The layout DJs know from the big DJ apps, in its own visual style: neutral greys, flat hardware-like controls, colour only where it means something (green play, orange cue, blue sync, amber master), RGB waveforms (lows red, mids green, highs blue), no third-party branding. |
 
 ## Stack as built
 | Layer | Choice |
@@ -28,6 +28,9 @@ A DJ app that runs in the browser, laid out like a classic performance screen: d
 | Library | IndexedDB, with sorting and filtering in memory |
 | File access | File System Access API, with folder handles kept in IndexedDB; fallback to drop / file input |
 | Controllers | Web MIDI with SysEx (the DDJ-FLX4 needs a keep-alive) |
+| Keylock | WSOLA time-stretch in the engine (`stretch.rs`); key shift from the same grains |
+| Headphones on a second device | A second AudioContext on that device, fed through a shared-memory ring; its reader resamples by up to ±0.3% to follow the clock drift |
+| Offline | A service worker (`web/public/sw.js`): hashed assets cache-first, everything else network-first |
 
 ### Changes from the first plan, and why
 - **No wasm-bindgen anywhere.** Both modules use plain `extern "C"` exports with zero imports. The worklet needs that anyway, and it removes a build tool.
@@ -53,10 +56,11 @@ Changes for general DJing:
 
 ## Engine (bm-engine)
 - **Decks:** play, pause and seek, with 3–4 ms fades and crossfades so nothing clicks. Varispeed tempo plus bend, scratching with a smoothed platter speed, reverse, loops (sample-accurate, crossfaded wrap), slip (a ghost position and a return to it), and sync.
-- **Sync:** the master deck's tempo and beat phase are read once per block. A synced deck matches the tempo (or half or double), jumps into phase when sync is pressed or play starts, and then holds phase with at most ±1% correction.
+- **Sync:** the master deck's tempo and bar position are read once per block. A synced deck matches the tempo (or half or double). When sync engages or play starts it jumps so its bars line up with the master's (downbeats together; a setting reduces this to beats). It then holds the beat with at most ±1% correction. After any jump it lands back on the beat at once: an overview click also realigns the bar, while beat jumps and hot cues keep their place in it. The waveforms are drawn at the tempo each deck plays at, so synced grids line up across the screen.
 - **Mixer:** trim, isolator EQ (kill to +6 dB), colour filter, fader × crossfader, and pre-fader cue. Master gain then the limiter. Headphones get a cue/master blend. Meters fall at about 30 dB/s.
 - **Beat FX:** echo (rings out when switched off), reverb, flanger and roll, on any channel or the master, synced to the master BPM.
 - **Loading:** a track is copied into the worklet 64k frames per audio block, so a 6-minute track loads in under a second without dropouts.
+- **Keylock and key shift:** WSOLA, the method SoundTouch (and Mixxx's default keylock) uses. The track is all in memory, so grains are read straight from it: every 20 ms a new 40 ms grain starts where the deck is, nudged by up to 12 ms to where its waveform best continues the last one, and is read at its own step (the pitch). Jumps and loop wraps crossfade through the grains. Four keylocked decks cost 1.8% of a core natively (plain playback: 1%).
 
 ## Build order
 0. ✅ Scaffold: Cargo workspace, Vite/Solid app, wasm build script, CI.
@@ -66,14 +70,15 @@ Changes for general DJing:
 4. ✅ Library: folders, drop-in, tags and cover art, background analysis, playlists, search, sort, key/BPM matches against the master deck.
 5. ✅ Mixer and headphone cue: 4-output, split mono, and output device choice.
 6. ✅ Hot cues (8, with colours, saved loops), memory cues, auto loops, loop in/out, halve/double, beat jump.
-7. ⬜ **Keylock (master tempo).** A time-stretcher in Rust: port Signalsmith Stretch's design (MIT) or write a phase-locked vocoder.
+7. ✅ Keylock (MT), key shift ±12 and key sync (shifts a deck into the master's key); the key readout shows the key as heard.
 8. ✅ Controllers: Web MIDI, a DDJ-FLX4 preset (from the Mixxx mapping: pads in hot cue, beat loop, beat jump and pad FX modes, jogs, LEDs, VU, keep-alive), and MIDI learn. ⚠ Not yet tried on hardware.
-9. 🟨 FX, recording and 4 decks are done. Still to do: an offline service worker (PWA) and auto gain tuned to real tracks.
+9. ✅ FX, recording, 4 decks, offline service worker. Auto gain still needs tuning on real tracks.
+10. ✅ Headphones on a second output device (Settings → Audio).
+11. ✅ rekordbox XML import: grids, keys, hot cues (with colours and names), memory cues, saved loops, ratings, play counts, playlists (folders flattened to "Folder / Playlist"). Tracks match by file name and size.
+12. ✅ Interface redesign: pad modes (hot cue / beat loop / beat jump), readouts for key, BPM, time and tempo, status flags, platter with a progress ring, RGB or 3-band waveforms, icons.
 
 ## Next
-1. Deploy: connect the repo to GitHub, add the Cloudflare secrets, and point `bangermix.horly.dev` at the Pages project.
-2. Test with the owner's music and DDJ-FLX4: tempo fader direction, jog feel (scratch and bend scaling) and LED states.
-3. Keylock.
-4. A second output device for headphones (a second `AudioContext` and drift correction) for laptops without a 4-channel interface.
-5. Rekordbox XML import (cues, grids, playlists).
-6. Later: stems on WebGPU, auto-mix from double-drop, and a Tauri desktop build with native audio.
+1. Deploy: add the Cloudflare secrets to the GitHub repo and point `bangermix.horly.dev` at the Pages project.
+2. Test with the owner's music and controller: tempo fader direction, jog feel (scratch and bend scaling), LED states, the second-device headphones (drift over a long set).
+3. Listen to keylock on real music at ±8%; if it smears, try longer grains or a phase vocoder for tonal material.
+4. Later: Traktor NML and Serato imports, stems on WebGPU, auto-mix from double-drop, a Tauri desktop build with native audio.

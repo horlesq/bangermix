@@ -5,7 +5,8 @@
 //
 // Messages in: {type: "set", params: [[deck, param, value], ...]},
 //              {type: "load", deck, left, right, rate, token},
-//              {type: "unload", deck}, {type: "mode", mode}.
+//              {type: "unload", deck}, {type: "mode", mode},
+//              {type: "phones", sab} (or sab: null) to feed a second output device.
 // Messages out: {type: "loaded", deck, token}, and {type: "state", state} when no
 // SharedArrayBuffer was given.
 
@@ -52,6 +53,9 @@ class BangermixProcessor extends AudioWorkletProcessor {
       case "mode":
         this.mode = m.mode;
         break;
+      case "phones":
+        this.phones = m.sab ? new PhonesRing(m.sab) : null;
+        break;
     }
   }
 
@@ -94,6 +98,9 @@ class BangermixProcessor extends AudioWorkletProcessor {
         out[3].set(o.subarray(3 * mb, 3 * mb + frames));
       }
     }
+    if (this.phones) {
+      this.phones.write(o.subarray(2 * mb, 2 * mb + frames), o.subarray(3 * mb, 3 * mb + frames));
+    }
     if (this.shared) {
       this.shared.set(this.state);
     } else if (++this.blocks % 4 === 0) {
@@ -104,3 +111,69 @@ class BangermixProcessor extends AudioWorkletProcessor {
 }
 
 registerProcessor("bangermix", BangermixProcessor);
+
+// The headphones on a second output device: the engine writes their mix into a ring
+// of shared memory, and this processor (in the second device's AudioContext) plays
+// it. The two devices' clocks drift apart, so the reader runs a hair fast or slow to
+// keep the ring about TARGET frames full.
+
+const RING_FRAMES = 16384;
+const TARGET = 1536;
+
+class PhonesRing {
+  constructor(sab) {
+    this.head = new Int32Array(sab, 0, 2);
+    this.data = new Float32Array(sab, 8, RING_FRAMES * 2);
+  }
+
+  write(left, right) {
+    let w = Atomics.load(this.head, 0);
+    for (let i = 0; i < left.length; i++) {
+      const k = (w % RING_FRAMES) * 2;
+      this.data[k] = left[i];
+      this.data[k + 1] = right[i];
+      w = (w + 1) | 0;
+    }
+    Atomics.store(this.head, 0, w);
+  }
+}
+
+class PhonesProcessor extends AudioWorkletProcessor {
+  constructor(options) {
+    super();
+    this.ring = new PhonesRing(options.processorOptions.sab);
+    this.read = -1;
+    this.fill = TARGET;
+  }
+
+  process(_inputs, outputs) {
+    const out = outputs[0];
+    const n = out[0].length;
+    const w = Atomics.load(this.ring.head, 0);
+    if (this.read < 0 || w - this.read > RING_FRAMES - 512 || w - this.read < 2) {
+      // Starting, or too far behind or ahead: start again TARGET frames back.
+      this.read = w - TARGET;
+      if (this.read < 0) {
+        out.forEach((c) => c.fill(0));
+        this.read = -1;
+        return true;
+      }
+    }
+    this.fill += (w - this.read - this.fill) * 0.01;
+    const rate = 1 + Math.max(-0.003, Math.min(0.003, ((this.fill - TARGET) / TARGET) * 0.01));
+    const d = this.ring.data;
+    for (let i = 0; i < n; i++) {
+      const p = Math.floor(this.read);
+      const t = this.read - p;
+      const a = (p % RING_FRAMES) * 2;
+      const b = ((p + 1) % RING_FRAMES) * 2;
+      out[0][i] = d[a] + (d[b] - d[a]) * t;
+      if (out[1]) out[1][i] = d[a + 1] + (d[b + 1] - d[a + 1]) * t;
+      this.read += rate;
+    }
+    Atomics.store(this.ring.head, 1, this.read | 0);
+    return true;
+  }
+}
+
+registerProcessor("bangermix-phones", PhonesProcessor);

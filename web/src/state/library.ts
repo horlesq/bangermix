@@ -10,6 +10,7 @@ import { parseKey } from "../lib/keys";
 import {
   ANALYSIS_VERSION,
   AUDIO_EXTENSIONS,
+  HOT_CUE_COLORS,
   type FolderRec,
   type PlaylistRec,
   type TrackRec,
@@ -464,6 +465,80 @@ export async function deletePlaylist(p: PlaylistRec) {
 export async function addToPlaylist(p: PlaylistRec, ids: string[]) {
   const set = new Set(p.trackIds);
   await savePlaylist({ ...p, trackIds: [...p.trackIds, ...ids.filter((i) => !set.has(i))] });
+}
+
+// --- Importing from rekordbox -------------------------------------------------------
+
+export interface ImportReport {
+  inXml: number;
+  matched: number;
+  playlists: number;
+  /** File names of tracks not found in the library (first few). */
+  missing: string[];
+  missingCount: number;
+}
+
+/** Applies a rekordbox.xml export to the library: grids, keys, cues, loops, ratings
+ * and playlists. Tracks are matched by file name and size, so the music must be in
+ * the library already (add its folder first). */
+export async function importRekordbox(text: string): Promise<ImportReport> {
+  const { parseRekordboxXml } = await import("../lib/rekordbox");
+  const xml = parseRekordboxXml(text, HOT_CUE_COLORS);
+  const byNameSize = new Map<string, TrackRec>();
+  const byName = new Map<string, TrackRec[]>();
+  for (const t of byId.values()) {
+    const name = t.name.toLowerCase();
+    byNameSize.set(`${name}|${t.size}`, t);
+    byName.set(name, [...(byName.get(name) ?? []), t]);
+  }
+  const idMap = new Map<string, string>();
+  const missing: string[] = [];
+  for (const x of xml.tracks) {
+    const name = x.fileName.toLowerCase();
+    const sameName = byName.get(name) ?? [];
+    const t = byNameSize.get(`${name}|${x.size}`) ?? (sameName.length === 1 ? sameName[0] : undefined);
+    if (!t) {
+      missing.push(x.fileName);
+      continue;
+    }
+    idMap.set(x.id, t.id);
+    const patch: Partial<TrackRec> = {
+      rating: x.rating || t.rating,
+      playCount: Math.max(t.playCount, x.playCount),
+      hotCues: x.hotCues.some(Boolean) ? x.hotCues : t.hotCues,
+      memoryCues: x.memoryCues.length ? x.memoryCues : t.memoryCues,
+    };
+    if (x.comment && !t.comment) patch.comment = x.comment;
+    if (x.genre && !t.genre) patch.genre = x.genre;
+    if (x.key) patch.key = x.key;
+    if (x.bpm) {
+      // A grid set in rekordbox counts as set by hand: analysis leaves it alone.
+      patch.bpm = x.bpm;
+      patch.anchor = x.anchor ?? t.anchor ?? 0;
+      patch.analysisVersion = x.anchor !== undefined ? -1 : t.analysisVersion;
+    }
+    if (x.memoryCues.length && t.cue === undefined) patch.cue = x.memoryCues[0].time;
+    updateTrack(t.id, patch);
+  }
+  let made = 0;
+  for (const p of xml.playlists) {
+    const ids = p.trackIds.map((i) => idMap.get(i)).filter((i): i is string => !!i);
+    if (ids.length === 0) continue;
+    const existing = playlists().find((x) => x.name === p.name);
+    if (existing) await savePlaylist({ ...existing, trackIds: ids });
+    else {
+      const created = await createPlaylist(p.name);
+      await savePlaylist({ ...created, trackIds: ids });
+    }
+    made++;
+  }
+  return {
+    inXml: xml.tracks.length,
+    matched: idMap.size,
+    playlists: made,
+    missing: missing.slice(0, 8),
+    missingCount: missing.length,
+  };
 }
 
 // --- Helpers ------------------------------------------------------------------------

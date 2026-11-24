@@ -4,7 +4,8 @@
 import { batch, createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
 import { P, S } from "../audio/params";
-import { HOT_CUE_COLORS, type Cue, type TrackRec } from "../lib/types";
+import { shiftToMatch, transpose } from "../lib/keys";
+import { HOT_CUE_COLORS, type Cue, type MusicalKey, type TrackRec } from "../lib/types";
 import { engine, maybeEngine, notify, pool } from "./app";
 import {
   WAVEFORM_COLUMNS_PER_S,
@@ -31,6 +32,7 @@ export interface Live {
   loaded: number;
   duration: number;
   phase: number;
+  pitch: number;
 }
 
 export class Deck {
@@ -62,6 +64,13 @@ export class Deck {
   private readonly setPendingIn: (v: number | null) => void;
   readonly jumpBeats: () => number;
   readonly setJumpBeats: (v: number) => void;
+  readonly keylock: () => boolean;
+  private readonly setKeylockSig: (v: boolean) => void;
+  readonly keyShift: () => number;
+  private readonly setKeyShiftSig: (v: number) => void;
+  /** Which set of actions the 8 pads play. */
+  readonly padMode: () => PadMode;
+  readonly setPadMode: (m: PadMode) => void;
 
   private previewing = false;
   private loadToken = 0;
@@ -85,6 +94,7 @@ export class Deck {
       loaded: 0,
       duration: 0,
       phase: 0,
+      pitch: 1,
     });
     this.live = live;
     this.setLive = setLive as any;
@@ -97,6 +107,9 @@ export class Deck {
     [this.cuePoint, this.setCuePoint] = createSignal(0);
     [this.pendingIn, this.setPendingIn] = createSignal<number | null>(null);
     [this.jumpBeats, this.setJumpBeats] = createSignal(settings.beatJump);
+    [this.keylock, this.setKeylockSig] = createSignal(settings.keylockDefault);
+    [this.keyShift, this.setKeyShiftSig] = createSignal(0);
+    [this.padMode, this.setPadMode] = createSignal<PadMode>("hotcue");
 
     onTrackChange((t) => {
       if (t.id === this.track()?.id) {
@@ -130,6 +143,7 @@ export class Deck {
       this.setLive("loaded", d(S.LOADED));
       this.setLive("duration", d(S.DURATION));
       this.setLive("phase", d(S.PHASE));
+      this.setLive("pitch", d(S.PITCH) || 1);
     });
   }
 
@@ -247,6 +261,8 @@ export class Deck {
         this.setReverseSig(false);
       });
       this.sendGrid();
+      this.set(P.KEYLOCK, this.keylock() ? 1 : 0);
+      this.setKeyShift(0);
       const cue = fresh.cue ?? this.firstBeat();
       this.setCuePoint(cue);
       this.set(P.SEEK, cue);
@@ -314,9 +330,12 @@ export class Deck {
     this.set(P.SEEK, Math.max(0, t));
   }
 
+  /** A jump to anywhere (overview click). A synced deck lands back in step with the
+   * master's bars; beat jumps and hot cues keep their place in the bar instead. */
   seekFraction(f: number) {
     const d = this.live.duration || this.track()?.duration || 0;
     this.seek(this.quant(f * d));
+    if (this.sync()) this.set(P.ALIGN, 1);
   }
 
   /** A jump that keeps the beat: lands as far from `t` as the deck now is from its
@@ -470,6 +489,35 @@ export class Deck {
     this.set(P.SLIP, on ? 1 : 0);
   }
 
+  setKeylock(on: boolean) {
+    this.setKeylockSig(on);
+    this.set(P.KEYLOCK, on ? 1 : 0);
+  }
+
+  setKeyShift(semitones: number) {
+    const s = Math.max(-12, Math.min(12, Math.round(semitones)));
+    this.setKeyShiftSig(s);
+    this.set(P.KEY_SHIFT, s);
+  }
+
+  /** The key as heard: shifted by the key shift, and by the tempo without keylock. */
+  heardKey(): MusicalKey | undefined {
+    const k = this.track()?.key;
+    if (!k) return undefined;
+    const pitch = this.live.playing ? this.live.pitch : this.keylock() ? 2 ** (this.keyShift() / 12) : this.live.tempo * 2 ** (this.keyShift() / 12);
+    return transpose(k, 12 * Math.log2(pitch || 1));
+  }
+
+  /** Shifts the key to match the master deck's (with keylock, so tempo can't undo it). */
+  keySync() {
+    const m = masterDeck();
+    const mine = this.track()?.key;
+    const theirs = m && m !== this ? m.heardKey() : undefined;
+    if (!mine || !theirs) return;
+    this.setKeylock(true);
+    this.setKeyShift(shiftToMatch(mine, theirs));
+  }
+
   setReverse(on: boolean) {
     this.setReverseSig(on);
     this.set(P.REVERSE, on ? 1 : 0);
@@ -528,6 +576,8 @@ export class Deck {
 }
 
 // --- All decks, and which one is the master ---------------------------------------
+
+export type PadMode = "hotcue" | "loop" | "jump";
 
 export const decks: Deck[] = [0, 1, 2, 3].map((i) => new Deck(i));
 
