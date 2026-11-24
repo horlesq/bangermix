@@ -1,0 +1,12 @@
+[package]
+name = "bm-engine-wasm"
+description = "bangermix engine for the AudioWorklet: raw C-ABI exports, no wasm-bindgen (the worklet scope lacks what it needs)"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+bm-engine.workspace = true

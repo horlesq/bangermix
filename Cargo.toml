@@ -1,0 +1,31 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace.dependencies]
+bm-dsp = { path = "crates/bm-dsp" }
+bm-engine = { path = "crates/bm-engine" }
+bm-analysis = { path = "crates/bm-analysis" }
+bm-decode = { path = "crates/bm-decode" }
+rustfft = "6"
+symphonia = { version = "0.5", features = ["all"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Audio code is far too slow unoptimised; keep debug builds and tests usable.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

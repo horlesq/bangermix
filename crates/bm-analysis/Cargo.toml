@@ -1,0 +1,10 @@
+[package]
+name = "bm-analysis"
+description = "bangermix track analysis: tempo, beat grid, downbeat, key, waveform"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+bm-dsp.workspace = true
+rustfft.workspace = true

@@ -1,0 +1,9 @@
+[package]
+name = "bm-decode"
+description = "bangermix audio decoding and tags: MP3, FLAC, WAV, AIFF, AAC/M4A, Ogg via Symphonia"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+symphonia.workspace = true

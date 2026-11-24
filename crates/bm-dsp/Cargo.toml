@@ -1,0 +1,6 @@
+[package]
+name = "bm-dsp"
+description = "bangermix DSP building blocks: filters, isolator EQ, limiter, interpolation"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true

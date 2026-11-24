@@ -1,0 +1,13 @@
+{
+  "name": "bangermix-root",
+  "private": true,
+  "description": "Runs the web app in web/ from the repository root.",
+  "scripts": {
+    "postinstall": "npm --prefix web install",
+    "dev": "npm --prefix web run dev",
+    "build": "npm --prefix web run build",
+    "preview": "npm --prefix web run preview",
+    "typecheck": "npm --prefix web run typecheck",
+    "test": "cargo test --workspace"
+  }
+}

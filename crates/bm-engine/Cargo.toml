@@ -1,0 +1,9 @@
+[package]
+name = "bm-engine"
+description = "bangermix audio engine: decks, mixer, sync, loops, FX. Real-time safe."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+bm-dsp.workspace = true
