@@ -34,7 +34,7 @@ export function TopBar(p: { openSettings: () => void; openHelp: () => void }) {
   return (
     <div class="topbar">
       <div class="brand">
-        <span class="brand-mark" />
+        <img class="brand-mark" src="/icon.svg" alt="" />
         BANGERMIX
       </div>
       <div class="master-bpm" title="Master tempo">
