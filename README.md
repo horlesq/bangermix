@@ -2,7 +2,7 @@
 
 A DJ app in the browser, laid out like the classic two-deck performance screen: scrolling 3-band waveforms on top, decks either side of a mixer, the library below. Everything runs on your computer: audio, analysis and the library. Nothing is uploaded. It goes online at **bangermix.horly.dev** as static files.
 
-**Status (24 November 2026):** two or four decks, sync, keylock and key shift, loops, hot cues, beat FX, recording, a library from your music folder with rekordbox import, keyboard and mouse control, a mapping for the Pioneer DDJ-FLX4, and offline use. Tested in Chrome with generated tracks; not yet with a real controller or a large library. See [PLAN.md](PLAN.md) for what comes next.
+**Status (25 November 2026):** two or four decks, sync, keylock and key shift, loops, hot cues, beat FX, recording, a library from your music folder with rekordbox import, keyboard and mouse control, about 50 Pioneer, Traktor, Numark and Denon controllers, and offline use. Tested in Chrome with generated tracks and simulated controller messages; not yet with a real controller. See [PLAN.md](PLAN.md) for what comes next.
 
 ## Run it
 Needs Rust (stable, with `rustup target add wasm32-unknown-unknown`) and Node.js 22+. On Windows, run the commands from PowerShell.
@@ -26,7 +26,7 @@ Use Chrome or Edge. Other browsers play too, but they don't remember your music 
 - **Mouse:** knobs and faders drag, double-click resets, Shift for fine moves. Drag a waveform or jog wheel to scratch (or nudge with *Vinyl* off). Scroll a waveform to zoom.
 - **Keyboard:** `F1` lists every shortcut. Deck 1 is on the left hand (`Z` cue, `X` play, `C` sync, `D` keylock, `1–4` hot cues), deck 2 on the right (`M` cue, `,` play, `.` sync, `J` keylock, `7–0` hot cues).
 - **Headphone cue:** Settings → Audio. A controller's 4-output sound card puts the headphones on outputs 3–4. Or pick a separate device for the headphones (USB headphones, a second sound card). With one plain stereo output, *split* puts the master in mono on the left and the headphones on the right (for a splitter cable).
-- **Controllers:** Settings → MIDI → *Connect*. The DDJ-FLX4 is mapped (from the Mixxx project's open mapping). Anything else: MIDI learn, one control at a time.
+- **Controllers:** Settings → Controllers → *Connect MIDI controllers*. A controller is recognised by its name and gets its mapping; you can pick another in the same place. Pioneer, Traktor, Numark and Denon controllers (about 50, listed under *Supported controllers*) use the Mixxx project's mappings, run through a compatibility layer. Most Traktor Kontrol models are HID devices, not MIDI: connect them with *Connect a HID controller*. Anything else: MIDI learn, one control at a time.
 - **Recording:** ● REC records the master and saves a `.webm` file when stopped.
 
 ## How it is built
@@ -44,9 +44,13 @@ web/
   src/workers         decoder/analyser worker pool
   src/state           decks, mixer, library (IndexedDB), settings
   src/ui              Solid components; waveforms and meters are canvases drawn every frame
-  src/midi            Web MIDI, presets (DDJ-FLX4), MIDI learn
+  src/midi            Web MIDI and WebHID, MIDI learn
+  src/midi/mixxx      runs Mixxx controller mappings: their XML, their scripts, Mixxx's controls
 ```
 The engine runs in Rust on the browser's audio thread. The interface sends it parameter changes and reads its state (positions, meters) from shared memory every frame. Decoding and analysis run in a pool of workers; one is kept free so loading a deck never waits behind library analysis.
+
+## Controller mappings from Mixxx
+The [Mixxx](https://mixxx.org) project keeps open mappings for hundreds of controllers: an XML file of MIDI messages and a script for jogs, LEDs and shift layers. bangermix fetches a controller's files from Mixxx's GitHub repository, at release 2.5.6, the first time it is used, and caches them, so it then works offline. They are GPL-2.0-or-later and are not copied into this repository. The scripts run in a hidden iframe with the same `engine`, `midi` and `controller` objects Mixxx gives them, and Mixxx's controls (`[Channel1] play`, `[Master] crossfader`, …) map onto this app's decks, mixer, beat FX and browser. Controls with no counterpart here (samplers, stems, a second effect at once) are accepted and do nothing.
 
 ## Deploying
 Cloudflare Pages serves `web/dist` with the headers in `web/public/_headers`. Without them the browser withholds shared memory and the meters update less often. The CI workflow deploys `main` when the repository has the secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Then add `bangermix.horly.dev` as a custom domain of the `bangermix` Pages project.

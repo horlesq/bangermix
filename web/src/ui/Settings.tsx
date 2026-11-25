@@ -1,7 +1,19 @@
 import { For, Show, createResource, createSignal } from "solid-js";
 import { outputDevices, type OutputMode } from "../audio/engine";
 import { ACTIONS } from "../midi/actions";
-import { enableMidi, forget, learned, learning, lastMessage, midiDevices, midiState, setLearning } from "../midi/midi";
+import { connectHid, hidDevices, hidSupported } from "../midi/hid";
+import {
+  chooseMapping,
+  enableMidi,
+  forget,
+  learned,
+  learning,
+  lastMessage,
+  midiDevices,
+  midiState,
+  setLearning,
+} from "../midi/midi";
+import { BRANDS, CATALOG, MIXXX_RELEASE } from "../midi/mixxx/catalog";
 import { maybeEngine } from "../state/app";
 import { type ImportReport, importRekordbox, reanalyse, tracks } from "../state/library";
 import { applyAll } from "../state/mixer";
@@ -17,7 +29,7 @@ export function Settings(p: { close: () => void }) {
             <For each={["audio", "decks", "library", "midi"] as const}>
               {(t) => (
                 <button classList={{ on: tab() === t }} onClick={() => setTab(t)}>
-                  {t.toUpperCase()}
+                  {t === "midi" ? "CONTROLLERS" : t.toUpperCase()}
                 </button>
               )}
             </For>
@@ -305,15 +317,31 @@ function MidiSettings() {
       </Show>
       <Show when={midiState() === "on"}>
         <div class="field">
-          <span>Devices</span>
-          <div>
+          <span>MIDI devices</span>
+          <div class="devices">
             <Show when={midiDevices().length === 0}>
               <em>None connected.</em>
             </Show>
             <For each={midiDevices()}>
               {(d) => (
-                <div>
-                  {d.name} — {d.preset ?? "no preset: use MIDI learn"}
+                <div class="device">
+                  <div class="device-name">{d.name}</div>
+                  <select value={d.choice} onChange={(e) => chooseMapping(d.id, e.currentTarget.value)}>
+                    <option value="auto">Automatic{d.choice === "auto" && d.preset ? ` (${d.preset})` : ""}</option>
+                    <option value="none">None (MIDI learn only)</option>
+                    <For each={BRANDS}>
+                      {(b) => (
+                        <optgroup label={b}>
+                          <For each={CATALOG.filter((c) => c.brand === b && !c.hid)}>
+                            {(c) => <option value={`mixxx:${c.file}`}>{c.model}</option>}
+                          </For>
+                        </optgroup>
+                      )}
+                    </For>
+                  </select>
+                  <Show when={d.status}>
+                    <div class="note">{d.status}</div>
+                  </Show>
                 </div>
               )}
             </For>
@@ -354,6 +382,53 @@ function MidiSettings() {
           </For>
         </div>
       </Show>
+      <hr />
+      <div class="field">
+        <span>HID controllers</span>
+        <div class="devices">
+          <Show
+            when={hidSupported}
+            fallback={<em>This browser has no WebHID. Use Chrome or Edge.</em>}
+          >
+            <For each={hidDevices()}>
+              {(d) => (
+                <div class="device">
+                  <div class="device-name">{d.name}</div>
+                  <div class="note">{d.status}</div>
+                </div>
+              )}
+            </For>
+            <button onClick={() => void connectHid()}>Connect a HID controller…</button>
+            <p class="note">Most Traktor Kontrol controllers, and Pioneer CDJs in HID mode. Chrome asks once.</p>
+          </Show>
+        </div>
+      </div>
+      <SupportedControllers />
     </div>
+  );
+}
+
+function SupportedControllers() {
+  return (
+    <details class="supported">
+      <summary>Supported controllers</summary>
+      <p class="note">
+        Mixxx project mappings (release {MIXXX_RELEASE}) are fetched from GitHub the first time a controller is used,
+        then work offline. They are tested by the Mixxx community on Mixxx; here they run through a compatibility layer
+        and are untested on hardware. Features this app lacks (samplers, stems, more than one effect at a time) do nothing.
+      </p>
+      <For each={BRANDS}>
+        {(b) => (
+          <div class="brand-list">
+            <strong>{b}</strong>
+            <span>
+              {CATALOG.filter((c) => c.brand === b)
+                .map((c) => `${c.model}${c.hid ? " (HID)" : ""}`)
+                .join(" · ")}
+            </span>
+          </div>
+        )}
+      </For>
+    </details>
   );
 }

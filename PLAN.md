@@ -4,7 +4,7 @@ A DJ app that runs in the browser, laid out like a classic performance screen: d
 
 - **Name:** bangermix, at **bangermix.horly.dev**
 - **For:** the owner, on Chrome on Windows. Other browsers work where they can.
-- **Status (24 November 2026):** every phase built, plus headphones on a second device, rekordbox XML import, offline use and a redesigned interface. Tested in headless Chrome with generated tracks; CI passes on GitHub. A real-hardware test and the first deploy are next.
+- **Status (25 November 2026):** every phase built, plus headphones on a second device, rekordbox XML import, offline use, a redesigned interface and about 50 controllers through Mixxx's mappings. Deployed at bangermix.horly.dev. Tested in headless Chrome with generated tracks and simulated controller messages; not yet on hardware.
 
 ## Decided
 | | Decision |
@@ -27,7 +27,7 @@ A DJ app that runs in the browser, laid out like a classic performance screen: d
 | Hot visuals | Canvas 2D: each waveform is painted once into tiles, and each frame only copies the visible part |
 | Library | IndexedDB, with sorting and filtering in memory |
 | File access | File System Access API, with folder handles kept in IndexedDB; fallback to drop / file input |
-| Controllers | Web MIDI with SysEx (the DDJ-FLX4 needs a keep-alive) |
+| Controllers | Web MIDI with SysEx (the DDJ-FLX4 needs a keep-alive); WebHID for Traktor Kontrol and CDJs in HID mode. Every controller runs the Mixxx project's mapping (`src/midi/mixxx`) |
 | Keylock | WSOLA time-stretch in the engine (`stretch.rs`); key shift from the same grains |
 | Headphones on a second device | A second AudioContext on that device, fed through a shared-memory ring; its reader resamples by up to ±0.3% to follow the clock drift |
 | Offline | A service worker (`web/public/sw.js`): hashed assets cache-first, everything else network-first |
@@ -71,14 +71,15 @@ Changes for general DJing:
 5. ✅ Mixer and headphone cue: 4-output, split mono, and output device choice.
 6. ✅ Hot cues (8, with colours, saved loops), memory cues, auto loops, loop in/out, halve/double, beat jump.
 7. ✅ Keylock (MT), key shift ±12 and key sync (shifts a deck into the master's key); the key readout shows the key as heard.
-8. ✅ Controllers: Web MIDI, a DDJ-FLX4 preset (from the Mixxx mapping: pads in hot cue, beat loop, beat jump and pad FX modes, jogs, LEDs, VU, keep-alive), and MIDI learn. ⚠ Not yet tried on hardware.
+8. ✅ Controllers: Web MIDI, a DDJ-FLX4 preset (from the Mixxx mapping: pads in hot cue, beat loop, beat jump and pad FX modes, jogs, LEDs, VU, keep-alive), and MIDI learn. Replaced in step 13 by Mixxx's own mappings; MIDI learn stays.
 9. ✅ FX, recording, 4 decks, offline service worker. Auto gain still needs tuning on real tracks.
 10. ✅ Headphones on a second output device (Settings → Audio).
 11. ✅ rekordbox XML import: grids, keys, hot cues (with colours and names), memory cues, saved loops, ratings, play counts, playlists (folders flattened to "Folder / Playlist"). Tracks match by file name and size.
 12. ✅ Interface redesign: pad modes (hot cue / beat loop / beat jump), readouts for key, BPM, time and tempo, status flags, platter with a progress ring, RGB or 3-band waveforms, icons.
+13. ✅ Controllers from Mixxx: Pioneer (DDJ-FLX4, -400, -200, -SB, -SB2, -SB3, -SX, CDJ-2000/850/350, CDJ HID), Native Instruments (Traktor Kontrol S4 MK3/MK2, S3, S2 MK3/MK2/MK1, MX2, Z1, F1, X1), Numark (Mixtrack Platinum FX, Pro FX, Platinum, Pro 3, Pro II, Pro, Mixtrack, Mixstream Pro, NS4FX, NS6II, NS7, N4, V7, Party Mix, DJ2GO2 Touch, DJ2Go, iDJ Live II, Omni Control, Total Control, Scratch), Denon DJ (MC7000, MC6000MK2, MC4000, MC3000, SC2000, HS5500). Mappings are fetched from Mixxx 2.5.6 and cached. A compatibility layer gives their scripts Mixxx's engine API (values, parameters, connections, timers, soft takeover, scratching with Mixxx's alpha-beta filter, brake and spinback) and applies their XML the way Mixxx does (MIDI options, 14-bit, outputs). All 48 load and start; with every input pressed in turn, 39 run without a script error, and the rest fail on bugs in the mappings themselves or on fake test input. ⚠ Untested on hardware.
 
 ## Next
-1. Deploy: add the Cloudflare secrets to the GitHub repo and point `bangermix.horly.dev` at the Pages project.
-2. Test with the owner's music and controller: tempo fader direction, jog feel (scratch and bend scaling), LED states, the second-device headphones (drift over a long set).
-3. Listen to keylock on real music at ±8%; if it smears, try longer grains or a phase vocoder for tonal material.
+1. Test with the owner's music and controllers: on Mixxx-mapped ones, that the mapping loads, jogs scratch at the right speed, LEDs follow, and Traktor HID controllers connect; then tempo fader direction, LED states and the second-device headphones (drift over a long set).
+2. Listen to keylock on real music at ±8%; if it smears, try longer grains or a phase vocoder for tonal material.
+3. Controller options: Mixxx mappings declare settings (jog sensitivity, pad modes); they run on their defaults until there is a screen for them.
 4. Later: Traktor NML and Serato imports, stems on WebGPU, auto-mix from double-drop, a Tauri desktop build with native audio.

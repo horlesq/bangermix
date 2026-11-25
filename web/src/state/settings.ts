@@ -32,7 +32,6 @@ export interface Settings {
   /** Jog wheels and the waveform: scratch when touched (vinyl) or bend (CDJ). */
   vinyl: boolean;
   autoGain: boolean;
-  midiPreset: string;
   midiInvertTempo: boolean;
 }
 
@@ -54,7 +53,6 @@ const DEFAULTS: Settings = {
   beatJump: 4,
   vinyl: true,
   autoGain: false,
-  midiPreset: "auto",
   midiInvertTempo: false,
 };
 

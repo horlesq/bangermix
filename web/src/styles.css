@@ -1556,6 +1556,59 @@ input[type="number"] {
   color: var(--cue);
 }
 
+.field:has(> .devices) {
+  align-items: flex-start;
+}
+
+.devices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  align-items: flex-start;
+}
+
+.device {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--well);
+  border: 1px solid var(--line);
+  align-self: stretch;
+}
+
+.device-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.device select {
+  max-width: 320px;
+}
+
+.supported summary {
+  cursor: pointer;
+  color: var(--dim);
+}
+
+.supported[open] summary {
+  margin-bottom: 8px;
+}
+
+.brand-list {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 8px;
+  padding: 5px 0;
+  border-top: 1px solid #222;
+  line-height: 1.5;
+}
+
+.brand-list span {
+  color: var(--dim);
+}
+
 .learn-list {
   display: flex;
   flex-direction: column;

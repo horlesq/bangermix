@@ -17,6 +17,7 @@ import {
 } from "../lib/types";
 import type { WorkerPool } from "../workers/pool";
 import type { AnalysisResult } from "../workers/protocol";
+import { notify } from "./app";
 import { settings } from "./settings";
 
 export const WAVEFORM_COLUMNS_PER_S = 100;
@@ -97,22 +98,28 @@ export async function loadLibrary() {
   setPlaylists(ps.sort((a, b) => a.createdAt - b.createdAt));
   const acc: Record<string, PermissionState> = {};
   for (const f of fs) {
-    if (f.handle) acc[f.id] = await permission(f.handle, false);
+    if (f.handle) acc[f.id] = await permissionOrDenied(f.handle);
   }
   setAccess(acc);
   // Dropped files are gone after a reload: their rows stay, marked missing.
 }
 
+/** Whether a folder from an earlier visit can be read. Throws when the browser
+ * can't use the handle at all (the folder was moved, renamed or deleted). */
 async function permission(handle: FileSystemHandle, ask: boolean): Promise<PermissionState> {
   const h = handle as FileSystemHandle & {
     queryPermission?: (o: object) => Promise<PermissionState>;
     requestPermission?: (o: object) => Promise<PermissionState>;
   };
+  const mode = { mode: "read" };
+  let state = h.queryPermission ? await h.queryPermission(mode) : "granted";
+  if (state === "prompt" && ask && h.requestPermission) state = await h.requestPermission(mode);
+  return state;
+}
+
+async function permissionOrDenied(handle: FileSystemHandle): Promise<PermissionState> {
   try {
-    const mode = { mode: "read" };
-    let state = h.queryPermission ? await h.queryPermission(mode) : "granted";
-    if (state === "prompt" && ask && h.requestPermission) state = await h.requestPermission(mode);
-    return state;
+    return await permission(handle, false);
   } catch {
     return "denied";
   }
@@ -121,9 +128,23 @@ async function permission(handle: FileSystemHandle, ask: boolean): Promise<Permi
 /** Asks again for access to a folder from an earlier visit (needs a click). */
 export async function reconnect(folder: FolderRec) {
   if (!folder.handle) return;
-  const state = await permission(folder.handle, true);
+  let state: PermissionState;
+  try {
+    state = await permission(folder.handle, true);
+  } catch (e) {
+    console.warn("reconnect failed", e);
+    notify(
+      `Can't open "${folder.name}" any more (${(e as Error).name || "error"}): it may have been moved or renamed. Remove it from Folders (✕) and add it again.`,
+    );
+    return;
+  }
   setAccess({ ...access(), [folder.id]: state });
   if (state === "granted") void scanFolder(folder);
+  else if (state === "denied") {
+    notify(
+      `Chrome is blocking access to "${folder.name}". Allow it in the site settings (the icon left of the address), or remove the folder (✕) and add it again.`,
+    );
+  }
 }
 
 /** Every folder that needs a click to be readable again. */
@@ -136,18 +157,38 @@ export function foldersNeedingAccess(): FolderRec[] {
 export const canPickFolders = typeof (window as any).showDirectoryPicker === "function";
 
 export async function addFolder() {
-  const handle: FileSystemDirectoryHandle = await (window as any).showDirectoryPicker({
-    id: "bangermix-music",
-    mode: "read",
-  });
-  await addFolderHandle(handle);
+  let handle: FileSystemDirectoryHandle;
+  try {
+    handle = await (window as any).showDirectoryPicker({ id: "bangermix-music", mode: "read" });
+  } catch (e) {
+    // Closing the picker is not an error.
+    if ((e as Error).name !== "AbortError") notify(`Could not open the folder: ${(e as Error).message}`);
+    return;
+  }
+  try {
+    await addFolderHandle(handle);
+  } catch (e) {
+    console.warn("adding the folder failed", e);
+    notify(`Could not add "${handle.name}": ${(e as Error).message || (e as Error).name}`);
+  }
 }
 
 async function addFolderHandle(handle: FileSystemDirectoryHandle) {
   for (const f of folders()) {
-    if (f.handle && (await f.handle.isSameEntry(handle))) {
+    let same = false;
+    try {
+      same = !!f.handle && (await f.handle.isSameEntry(handle));
+    } catch {
+      // A handle from an earlier visit that the browser can't use any more.
+    }
+    if (same) {
+      // A folder we know: keep its tracks, but read it through the new handle,
+      // which has access now (the stored one may not).
+      const fresh: FolderRec = { ...f, handle };
+      await db.put("folders", fresh);
+      setFolders(folders().map((x) => (x.id === f.id ? fresh : x)));
       setAccess({ ...access(), [f.id]: "granted" });
-      return scanFolder(f);
+      return scanFolder(fresh);
     }
   }
   const folder: FolderRec = { id: `f${Date.now().toString(36)}`, name: handle.name, handle, addedAt: Date.now() };
@@ -171,6 +212,17 @@ export async function removeFolder(folder: FolderRec) {
 
 /** Files and folders dropped on the window (or picked with a file input). */
 export async function addDropped(items: DataTransferItemList | File[]) {
+  // The items must be read now: a DataTransferItemList empties after the event.
+  const pending = collectDropped(items);
+  try {
+    await pending;
+  } catch (e) {
+    console.warn("adding dropped files failed", e);
+    notify(`Could not add the dropped files: ${(e as Error).message || (e as Error).name}`);
+  }
+}
+
+async function collectDropped(items: DataTransferItemList | File[]) {
   const files: File[] = [];
   if (Array.isArray(items)) {
     files.push(...items);
@@ -236,6 +288,10 @@ export async function scanFolder(folder: FolderRec) {
     }
   } catch (e) {
     console.warn("scan failed", e);
+    setScanStatus("");
+    notify(
+      `Could not read "${folder.name}" (${(e as Error).name || "error"})${found.length ? `: stopped after ${found.length} files` : ""}. If it was moved or renamed, remove it from Folders (✕) and add it again.`,
+    );
   }
   await addFound(folder.id, found);
 }

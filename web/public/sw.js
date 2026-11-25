@@ -9,7 +9,10 @@ self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     (async () => {
-      for (const key of await caches.keys()) if (key !== CACHE) await caches.delete(key);
+      // Old app caches go; controller mappings (bangermix-mixxx-*) stay for offline use.
+      for (const key of await caches.keys()) {
+        if (key !== CACHE && key.startsWith("bangermix-v")) await caches.delete(key);
+      }
       await self.clients.claim();
     })(),
   );

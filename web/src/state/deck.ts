@@ -573,6 +573,79 @@ export class Deck {
     if (!t?.bpm) return;
     updateTrack(t.id, { bpm: t.bpm * factor, analysisVersion: -1 });
   }
+
+  // --- Lower-level controls, for controller mappings that drive the deck directly --
+
+  /** Moves the cue point (and saves it with the track). */
+  setCueAt(t: number) {
+    const track = this.track();
+    if (!track) return;
+    this.setCuePoint(Math.max(0, t));
+    updateTrack(track.id, { cue: Math.max(0, t) });
+  }
+
+  /** Sets the loop's ends; `on` also starts it looping. */
+  setLoopPoints(a: number, b: number, on: boolean) {
+    if (!(b > a)) return;
+    this.set(P.LOOP_IN, a);
+    this.set(P.LOOP_OUT, b);
+    if (on) this.set(P.LOOP_ON, 1);
+  }
+
+  setLoopOn(on: boolean) {
+    if (on && !(this.live.loopOut > this.live.loopIn)) return;
+    this.set(P.LOOP_ON, on ? 1 : 0);
+  }
+
+  /** Moves the loop (and the playhead inside it) by `beats`. */
+  loopMove(beats: number) {
+    if (!(this.live.loopOut > this.live.loopIn)) return;
+    const dt = beats * (this.beat() || 0.5);
+    this.setLoopPoints(this.live.loopIn + dt, this.live.loopOut + dt, this.live.loopOn);
+    if (this.live.loopOn) this.seek(this.live.pos + dt);
+  }
+
+  private rollSlip: boolean | null = null;
+
+  /** A loop that plays while held; on release the track carries on where it would
+   * have been (slip). */
+  rollStart(beats: number) {
+    if (!this.track()) return;
+    if (this.rollSlip === null) this.rollSlip = this.slip();
+    this.set(P.SLIP, 1);
+    const len = beats * (this.beat() || 0.5);
+    const start = this.quantDown(this.live.pos);
+    this.setLoopPoints(start, start + len, true);
+  }
+
+  rollEnd() {
+    if (this.rollSlip === null) return;
+    this.set(P.LOOP_ON, 0);
+    this.set(P.SLIP, this.rollSlip ? 1 : 0);
+    this.rollSlip = null;
+  }
+
+  /** Hot cue held while stopped: plays from it, and back to it on release. */
+  private hotPreview: number | null = null;
+
+  hotCueDown(i: number) {
+    const cue = this.track()?.hotCues[i];
+    if (cue && !this.live.playing) this.hotPreview = i;
+    this.hotCue(i);
+  }
+
+  hotCueUp(i: number) {
+    if (this.hotPreview !== i) return;
+    this.hotPreview = null;
+    const cue = this.track()?.hotCues[i];
+    this.set(P.PLAY, 0);
+    if (cue) this.seek(cue.time);
+  }
+
+  /** The hot cue being previewed (held while stopped), if any. */
+  previewingHotCue(): number | null {
+    return this.hotPreview;
+  }
 }
 
 // --- All decks, and which one is the master ---------------------------------------

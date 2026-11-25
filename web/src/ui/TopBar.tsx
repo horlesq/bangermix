@@ -1,5 +1,6 @@
 import { Show, createSignal, onCleanup } from "solid-js";
 import { startRecording, type Recording } from "../audio/recorder";
+import { hidDevices } from "../midi/hid";
 import { midiDevices, midiState } from "../midi/midi";
 import { audioError, audioReady, audioRunning, maybeEngine } from "../state/app";
 import { masterDeck } from "../state/deck";
@@ -53,8 +54,13 @@ export function TopBar(p: { openSettings: () => void; openHelp: () => void }) {
       </Show>
       <span
         class="pill"
-        classList={{ lit: midiState() === "on" && midiDevices().length > 0 }}
-        title={midiDevices().map((d) => `${d.name}: ${d.preset ?? "MIDI learn"}`).join("\n") || "No controller (Settings → MIDI)"}
+        classList={{ lit: (midiState() === "on" && midiDevices().length > 0) || hidDevices().length > 0 }}
+        title={
+          [
+            ...midiDevices().map((d) => `${d.name}: ${d.preset ?? "MIDI learn"}`),
+            ...hidDevices().map((d) => `${d.name}: ${d.status}`),
+          ].join("\n") || "No controller (Settings → Controllers)"
+        }
       >
         MIDI
       </span>

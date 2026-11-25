@@ -1,4 +1,5 @@
 import { Show, createEffect, createSignal, on, onMount } from "solid-js";
+import { initHid } from "./midi/hid";
 import { enableMidi } from "./midi/midi";
 import { P } from "./audio/params";
 import { audioReady, maybeEngine, startAudio, toast } from "./state/app";
@@ -41,6 +42,8 @@ export function App() {
     } catch {
       /* no permissions API for MIDI */
     }
+    // HID controllers (Traktor) allowed on an earlier visit reconnect too.
+    void initHid();
   });
 
   createEffect(on(audioReady, (ready) => ready && applyAll()));
