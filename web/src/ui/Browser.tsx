@@ -4,7 +4,21 @@ import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount }
 import { camelotText, compatibility, keyColor, keyName } from "../lib/keys";
 import type { PlaylistRec, TrackRec } from "../lib/types";
 import { notify } from "../state/app";
-import { type SortKey, search, selected, setSearch, setSelected, setSort, setView, sort, view, visible } from "../state/browser";
+import {
+  type SortKey,
+  pick,
+  picked,
+  pickedIds,
+  search,
+  selected,
+  setSearch,
+  setSort,
+  setView,
+  shownPlaylist,
+  sort,
+  view,
+  visible,
+} from "../state/browser";
 import { decks, masterDeck } from "../state/deck";
 import {
   addDropped,
@@ -14,6 +28,7 @@ import {
   canPickFolders,
   createPlaylist,
   deletePlaylist,
+  folderTrackIds,
   folders,
   foldersNeedingAccess,
   isAvailable,
@@ -29,12 +44,39 @@ import {
   updateTrack,
 } from "../state/library";
 import { settings } from "../state/settings";
-import { TRACK_MIME } from "./dnd";
+import { FOLDER_MIME, TRACK_MIME } from "./dnd";
 import { deckColor } from "./theme";
-import { IconClose, IconCollection, IconFolder, IconPlaylist, IconPlus, IconRefresh, IconSearch, IconUnlink, IconWarn } from "./icons";
+import { IconClose, IconCollection, IconFolder, IconPlaylist, IconPlus, IconRefresh, IconSearch, IconUnlink, IconUsb, IconWarn } from "./icons";
+import { setUsbOpen } from "./UsbExport";
 import { formatTime } from "./wave";
 
 const ROW = 26;
+
+/** Adds tracks to a playlist (by id, so a stale record can't undo other changes). */
+export async function addTracksTo(playlistId: string, ids: string[]) {
+  const p = playlists().find((x) => x.id === playlistId);
+  if (!p || ids.length === 0) return;
+  const before = p.trackIds.length;
+  await addToPlaylist(p, ids);
+  const added = (playlists().find((x) => x.id === playlistId)?.trackIds.length ?? before) - before;
+  notify(added ? `Added ${added} track${added === 1 ? "" : "s"} to ${p.name}` : `Already in ${p.name}`);
+}
+
+/** A track or a library folder dragged onto a playlist. */
+function dragsTracks(e: DragEvent) {
+  const types = e.dataTransfer?.types ?? [];
+  return types.includes(TRACK_MIME) || types.includes(FOLDER_MIME);
+}
+
+function dropTracks(playlistId: string, e: DragEvent) {
+  // One id per line: several tracks can be dragged at once.
+  const tracks = e.dataTransfer?.getData(TRACK_MIME);
+  const folder = e.dataTransfer?.getData(FOLDER_MIME);
+  if (!tracks && !folder) return;
+  e.preventDefault();
+  e.stopPropagation();
+  void addTracksTo(playlistId, tracks ? tracks.split("\n").filter(Boolean) : folderTrackIds(folder!));
+}
 
 interface Column {
   key: SortKey;
@@ -94,7 +136,17 @@ function Sidebar() {
       </div>
       <For each={folders()}>
         {(f) => (
-          <div class="side-item" classList={{ active: isView("folder", f.id) }} onClick={() => setView({ kind: "folder", id: f.id })}>
+          <div
+            class="side-item"
+            classList={{ active: isView("folder", f.id) }}
+            onClick={() => setView({ kind: "folder", id: f.id })}
+            draggable={true}
+            onDragStart={(e) => {
+              e.dataTransfer!.setData(FOLDER_MIME, f.id);
+              e.dataTransfer!.effectAllowed = "copy";
+            }}
+            title="Drag onto a playlist to add all its tracks"
+          >
             <IconFolder size={13} />
             <span class="name">{f.name}</span>
             <Show when={f.handle && foldersNeedingAccess().some((x) => x.id === f.id)}>
@@ -149,6 +201,9 @@ function Sidebar() {
 
       <div class="side-head">
         <span>PLAYLISTS</span>
+        <button class="icon mini" onClick={() => setUsbOpen(true)} title="Export to a USB stick for CDJs and Denon players">
+          <IconUsb size={12} />
+        </button>
         <button class="icon mini" onClick={newPlaylist} title="New playlist">
           <IconPlus size={12} />
         </button>
@@ -161,12 +216,9 @@ function Sidebar() {
             onClick={() => setView({ kind: "playlist", id: p.id })}
             onDblClick={() => renamePlaylist(p)}
             onDragOver={(e) => {
-              if (e.dataTransfer?.types.includes(TRACK_MIME)) e.preventDefault();
+              if (dragsTracks(e)) e.preventDefault();
             }}
-            onDrop={(e) => {
-              const id = e.dataTransfer?.getData(TRACK_MIME);
-              if (id) void addToPlaylist(p, [id]).then(() => notify(`Added to ${p.name}`));
-            }}
+            onDrop={(e) => dropTracks(p.id, e)}
           >
             <IconPlaylist size={13} />
             <span class="name">{p.name}</span>
@@ -356,7 +408,16 @@ function TrackTable() {
   };
 
   return (
-    <div class="tracks">
+    <div
+      class="tracks"
+      onDragOver={(e) => {
+        if (shownPlaylist() && dragsTracks(e)) e.preventDefault();
+      }}
+      onDrop={(e) => {
+        const p = shownPlaylist();
+        if (p) dropTracks(p.id, e);
+      }}
+    >
       <div class="tracks-bar">
         <IconSearch size={13} />
         <input
@@ -390,25 +451,37 @@ function TrackTable() {
       </div>
       <div class="tbody" ref={scroller} onScroll={() => setScrollTop(scroller.scrollTop)}>
         <Show when={visible().length === 0}>
-          <EmptyLibrary />
+          <EmptyView />
         </Show>
         <div style={{ height: `${visible().length * ROW}px`, position: "relative" }}>
           <For each={visible().slice(range().start, range().end)}>
             {(t, i) => (
               <div
                 class="trow"
-                classList={{ sel: selected() === t.id, missing: !isAvailable(t), odd: (range().start + i()) % 2 === 1 }}
+                classList={{ sel: picked().has(t.id) || selected() === t.id, missing: !isAvailable(t), odd: (range().start + i()) % 2 === 1 }}
                 style={{ top: `${(range().start + i()) * ROW}px`, "grid-template-columns": template }}
                 draggable={true}
                 onDragStart={(e) => {
-                  e.dataTransfer!.setData(TRACK_MIME, t.id);
+                  // The picked tracks if this is one of them, else just this one.
+                  const ids = picked().has(t.id) ? pickedIds() : [t.id];
+                  e.dataTransfer!.setData(TRACK_MIME, ids.join("\n"));
                   e.dataTransfer!.effectAllowed = "copy";
                 }}
-                onPointerDown={() => setSelected(t.id)}
+                onPointerDown={(e) => {
+                  if (e.button !== 0) return;
+                  if (e.shiftKey) pick(t.id, "range");
+                  else if (e.ctrlKey || e.metaKey) pick(t.id, "toggle");
+                  // Pressing on one of several picked tracks may start dragging them all:
+                  // narrow to it on click instead.
+                  else if (!(picked().has(t.id) && picked().size > 1)) pick(t.id, "only");
+                }}
+                onClick={(e) => {
+                  if (!e.shiftKey && !e.ctrlKey && !e.metaKey && picked().size > 1) pick(t.id, "only");
+                }}
                 onDblClick={() => loadToFree(t)}
                 onContextMenu={(e) => {
                   e.preventDefault();
-                  setSelected(t.id);
+                  if (!picked().has(t.id)) pick(t.id, "only");
                   setMenu({ x: e.clientX, y: e.clientY, track: t });
                 }}
               >
@@ -427,10 +500,20 @@ function TrackTable() {
 
 function RowMenu(p: { x: number; y: number; track: TrackRec; close: () => void }) {
   const v = view();
+  // The menu acts on every picked track when opened on one of them.
+  const ids = picked().has(p.track.id) ? pickedIds() : [p.track.id];
+  const what = ids.length === 1 ? "" : ` ${ids.length} tracks`;
   const act = (f: () => void) => (e: PointerEvent) => {
     e.stopPropagation();
     f();
     p.close();
+  };
+  const newPlaylist = async () => {
+    const name = prompt("Playlist name");
+    if (!name) return;
+    const pl = await createPlaylist(name);
+    await addTracksTo(pl.id, ids);
+    setView({ kind: "playlist", id: pl.id });
   };
   return (
     <div class="menu" style={{ left: `${p.x}px`, top: `${p.y}px` }} onPointerDown={(e) => e.stopPropagation()}>
@@ -438,24 +521,81 @@ function RowMenu(p: { x: number; y: number; track: TrackRec; close: () => void }
         {(d) => <div onPointerDown={act(() => void d.load(p.track))}>Load to deck {d.index + 1}</div>}
       </For>
       <hr />
-      <For each={playlists()}>
-        {(pl) => <div onPointerDown={act(() => void addToPlaylist(pl, [p.track.id]).then(() => notify(`Added to ${pl.name}`)))}>Add to {pl.name}</div>}
+      <For each={playlists().filter((pl) => pl.id !== (v as any).id)}>
+        {(pl) => (
+          <div onPointerDown={act(() => void addTracksTo(pl.id, ids))}>
+            Add{what} to {pl.name}
+          </div>
+        )}
       </For>
+      <div onPointerDown={act(() => void newPlaylist())}>New playlist with{what || " this track"}…</div>
       <Show when={v.kind === "playlist"}>
         <div
           onPointerDown={act(() => {
             const pl = playlists().find((x) => x.id === (v as any).id);
-            if (pl) void savePlaylist({ ...pl, trackIds: pl.trackIds.filter((id) => id !== p.track.id) });
+            const drop = new Set(ids);
+            if (pl) void savePlaylist({ ...pl, trackIds: pl.trackIds.filter((id) => !drop.has(id)) });
           })}
         >
-          Remove from playlist
+          Remove{what} from playlist
         </div>
       </Show>
       <hr />
-      <div onPointerDown={act(() => reanalyse([p.track.id]))}>Analyse again</div>
-      <div onPointerDown={act(() => updateTrack(p.track.id, { hotCues: Array(8).fill(null), memoryCues: [], cue: undefined }))}>
-        Clear cues
+      <div onPointerDown={act(() => reanalyse(ids))}>Analyse{what} again</div>
+      <div
+        onPointerDown={act(() => {
+          for (const id of ids) updateTrack(id, { hotCues: Array(8).fill(null), memoryCues: [], cue: undefined });
+        })}
+      >
+        Clear cues{what ? ` of${what}` : ""}
       </div>
+    </div>
+  );
+}
+
+function EmptyView() {
+  return (
+    <Show when={!search()} fallback={<div class="empty-library"><div class="empty-title">Nothing matches "{search()}"</div></div>}>
+      <Show when={shownPlaylist()} fallback={view().kind === "folder" ? <EmptyFolder /> : <EmptyLibrary />}>
+        {(p) => <EmptyPlaylist id={p().id} name={p().name} />}
+      </Show>
+    </Show>
+  );
+}
+
+function EmptyPlaylist(p: { id: string; name: string }) {
+  const fill = (ids: string[]) => addTracksTo(p.id, ids);
+  return (
+    <div class="empty-library">
+      <div class="empty-title">{p.name} is empty</div>
+      <p>
+        Drag tracks here (or onto the playlist's name) from the Collection or a folder, drag a whole folder from the
+        sidebar, or right-click a track → <i>Add to {p.name}</i>.
+      </p>
+      <p>Files and folders dropped on the window while this playlist is open go into it too.</p>
+      <Show when={folders().some((f) => folderTrackIds(f.id).length > 0)}>
+        <div class="empty-folders">
+          <For each={folders().filter((f) => folderTrackIds(f.id).length > 0)}>
+            {(f) => (
+              <button onClick={() => void fill(folderTrackIds(f.id))}>
+                ADD ALL OF {f.name.toUpperCase()} ({folderTrackIds(f.id).length})
+              </button>
+            )}
+          </For>
+        </div>
+      </Show>
+      <Show when={canPickFolders}>
+        <button onClick={() => void addFolder().then(fill)}>ADD A NEW FOLDER TO THE LIBRARY AND THIS PLAYLIST</button>
+      </Show>
+    </div>
+  );
+}
+
+function EmptyFolder() {
+  return (
+    <div class="empty-library">
+      <div class="empty-title">No tracks in this folder</div>
+      <p>No MP3, FLAC, WAV, AIFF, M4A or OGG files were found in it. If files were added since, press ⟳ next to its name.</p>
     </div>
   );
 }

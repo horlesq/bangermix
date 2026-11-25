@@ -34,6 +34,12 @@ export function Help(p: { close: () => void }) {
                 </td>
                 <td>Search the library</td>
               </tr>
+              <tr>
+                <td>
+                  <kbd>Ctrl A</kbd>
+                </td>
+                <td>Select every track in the list</td>
+              </tr>
             </tbody>
           </table>
           <h4>Mouse</h4>
@@ -42,7 +48,8 @@ export function Help(p: { close: () => void }) {
             <li>Waveforms: drag to scratch (or nudge with vinyl mode off); scroll to zoom.</li>
             <li>Jog wheels: drag round the platter to scratch, round the outer edge to nudge.</li>
             <li>Overview: click to jump. Hot cue pads: click to set or jump, right-click to delete.</li>
-            <li>Tracks: double-click to load to a free deck, or drag onto a deck or a playlist.</li>
+            <li>Tracks: double-click to load to a free deck, or drag onto a deck or a playlist. Ctrl-click and Shift-click select several, to drag into a playlist together or right-click for all of them.</li>
+            <li>Folders: drag one from the sidebar onto a playlist to add all its tracks.</li>
           </ul>
         </div>
       </div>

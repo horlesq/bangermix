@@ -29,6 +29,8 @@ pub struct Tags {
     pub key: Option<String>,
     pub duration_s: Option<f64>,
     pub sample_rate: Option<u32>,
+    /// Bits per sample, where the format says (lossless files).
+    pub bits_per_sample: Option<u32>,
     /// Cover art: media type and bytes.
     pub art: Option<(String, Vec<u8>)>,
 }
@@ -133,6 +135,7 @@ pub fn probe(bytes: Vec<u8>, extension: Option<&str>) -> Result<Tags, String> {
     {
         let p = &track.codec_params;
         tags.sample_rate = p.sample_rate;
+        tags.bits_per_sample = p.bits_per_sample;
         if let (Some(n), Some(sr)) = (p.n_frames, p.sample_rate) {
             tags.duration_s = Some(n as f64 / sr as f64);
         }

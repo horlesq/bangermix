@@ -11,4 +11,5 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 bm-decode.workspace = true
 bm-analysis.workspace = true
+bm-export.workspace = true
 serde_json.workspace = true

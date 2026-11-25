@@ -1,6 +1,6 @@
 // What the browser shows: which folder or playlist, the search, the sort, the selection.
 
-import { createMemo, createRoot, createSignal } from "solid-js";
+import { createEffect, createMemo, createRoot, createSignal, on } from "solid-js";
 import { camelot, camelotText, keyName } from "../lib/keys";
 import type { TrackRec } from "../lib/types";
 import { playlists, tracks } from "./library";
@@ -23,6 +23,52 @@ export const [view, setView] = createSignal<View>({ kind: "collection" });
 export const [search, setSearch] = createSignal("");
 export const [sort, setSort] = createSignal<{ key: SortKey; dir: 1 | -1 }>({ key: "dateAdded", dir: -1 });
 export const [selected, setSelected] = createSignal<string | null>(null);
+/** Every highlighted track (Ctrl-click, Shift-click, Ctrl+A); `selected` is the one
+ * keyboard browsing and loading act on, and is always among them. */
+export const [picked, setPicked] = createSignal<ReadonlySet<string>>(new Set());
+let anchor: string | null = null;
+
+/** A click on a track: `only` picks just it, `toggle` adds or drops it (Ctrl), `range`
+ * picks everything from the last clicked track to it (Shift). */
+export function pick(id: string, how: "only" | "toggle" | "range") {
+  if (how === "range" && anchor) {
+    const ids = visible().map((t) => t.id);
+    const a = ids.indexOf(anchor);
+    const b = ids.indexOf(id);
+    if (a >= 0 && b >= 0) {
+      setPicked(new Set(ids.slice(Math.min(a, b), Math.max(a, b) + 1)));
+      setSelected(id);
+      return;
+    }
+  }
+  if (how === "toggle") {
+    const next = new Set(picked());
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setPicked(next);
+  } else setPicked(new Set([id]));
+  anchor = id;
+  setSelected(id);
+}
+
+export function pickAll() {
+  setPicked(new Set(visible().map((t) => t.id)));
+}
+
+/** The picked tracks in list order, or the selected one. */
+export function pickedIds(): string[] {
+  const p = picked();
+  if (p.size === 0) return selected() ? [selected()!] : [];
+  return visible()
+    .map((t) => t.id)
+    .filter((id) => p.has(id));
+}
+
+/** The playlist on show, if one is. */
+export function shownPlaylist() {
+  const v = view();
+  return v.kind === "playlist" ? playlists().find((p) => p.id === v.id) : undefined;
+}
 
 function keyOrder(t: TrackRec): number {
   if (!t.key) return 99;
@@ -92,4 +138,9 @@ export function moveSelection(delta: number) {
   const i = list.findIndex((t) => t.id === selected());
   const next = Math.max(0, Math.min(list.length - 1, (i < 0 ? -1 : i) + delta));
   setSelected(list[next].id);
+  setPicked(new Set([list[next].id]));
+  anchor = list[next].id;
 }
+
+// A new view starts with nothing picked.
+createRoot(() => createEffect(on(view, () => setPicked(new Set<string>()), { defer: true })));

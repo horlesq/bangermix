@@ -1,0 +1,17 @@
+[package]
+name = "bm-export"
+description = "bangermix USB exports for standalone players: rekordbox (Pioneer CDJ/XDJ) device libraries"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+# Pioneer's device-export formats (export.pdb, ANLZ files), MPL-2.0, vendored with one
+# addition (see third_party/rekordcrate/PATCHES.md).
+rekordcrate = { path = "../../third_party/rekordcrate" }
+binrw = "0.15"
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+fallible-iterator = "0.3.0"

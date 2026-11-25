@@ -156,24 +156,27 @@ export function foldersNeedingAccess(): FolderRec[] {
 
 export const canPickFolders = typeof (window as any).showDirectoryPicker === "function";
 
-export async function addFolder() {
+/** Picks a folder, adds it to the library, and returns the ids of its tracks (empty if
+ * the picker was closed or reading failed). */
+export async function addFolder(): Promise<string[]> {
   let handle: FileSystemDirectoryHandle;
   try {
     handle = await (window as any).showDirectoryPicker({ id: "bangermix-music", mode: "read" });
   } catch (e) {
     // Closing the picker is not an error.
     if ((e as Error).name !== "AbortError") notify(`Could not open the folder: ${(e as Error).message}`);
-    return;
+    return [];
   }
   try {
-    await addFolderHandle(handle);
+    return await addFolderHandle(handle);
   } catch (e) {
     console.warn("adding the folder failed", e);
     notify(`Could not add "${handle.name}": ${(e as Error).message || (e as Error).name}`);
+    return [];
   }
 }
 
-async function addFolderHandle(handle: FileSystemDirectoryHandle) {
+async function addFolderHandle(handle: FileSystemDirectoryHandle): Promise<string[]> {
   for (const f of folders()) {
     let same = false;
     try {
@@ -195,7 +198,7 @@ async function addFolderHandle(handle: FileSystemDirectoryHandle) {
   await db.put("folders", folder);
   setFolders([...folders(), folder]);
   setAccess({ ...access(), [folder.id]: "granted" });
-  await scanFolder(folder);
+  return scanFolder(folder);
 }
 
 export async function removeFolder(folder: FolderRec) {
@@ -210,19 +213,22 @@ export async function removeFolder(folder: FolderRec) {
   refresh();
 }
 
-/** Files and folders dropped on the window (or picked with a file input). */
-export async function addDropped(items: DataTransferItemList | File[]) {
+/** Files and folders dropped on the window (or picked with a file input). Returns the
+ * ids of their tracks. */
+export async function addDropped(items: DataTransferItemList | File[]): Promise<string[]> {
   // The items must be read now: a DataTransferItemList empties after the event.
   const pending = collectDropped(items);
   try {
-    await pending;
+    return await pending;
   } catch (e) {
     console.warn("adding dropped files failed", e);
     notify(`Could not add the dropped files: ${(e as Error).message || (e as Error).name}`);
+    return [];
   }
 }
 
-async function collectDropped(items: DataTransferItemList | File[]) {
+async function collectDropped(items: DataTransferItemList | File[]): Promise<string[]> {
+  const ids: string[] = [];
   const files: File[] = [];
   if (Array.isArray(items)) {
     files.push(...items);
@@ -240,13 +246,13 @@ async function collectDropped(items: DataTransferItemList | File[]) {
     }
     for (const h of await Promise.all(handles)) {
       if (!h) continue;
-      if (h.kind === "directory") await addFolderHandle(h as FileSystemDirectoryHandle);
+      if (h.kind === "directory") ids.push(...(await addFolderHandle(h as FileSystemDirectoryHandle)));
       else files.push(await (h as FileSystemFileHandle).getFile());
     }
     files.push(...plain);
   }
   const audio = files.filter((f) => AUDIO_EXTENSIONS.includes(extOf(f.name)));
-  if (audio.length === 0) return;
+  if (audio.length === 0) return ids;
   if (!folders().some((f) => f.id === DROPPED)) {
     const folder: FolderRec = { id: DROPPED, name: "Dropped files", addedAt: Date.now() };
     await db.put("folders", folder);
@@ -257,7 +263,7 @@ async function collectDropped(items: DataTransferItemList | File[]) {
     droppedFiles.set(id, file);
     return { id, path: file.name, file: async () => file };
   });
-  await addFound(DROPPED, found);
+  return [...ids, ...(await addFound(DROPPED, found))];
 }
 
 interface Found {
@@ -277,8 +283,9 @@ async function* walk(dir: FileSystemDirectoryHandle, prefix: string): AsyncGener
   }
 }
 
-export async function scanFolder(folder: FolderRec) {
-  if (!folder.handle) return;
+/** Reads a folder for new files; returns the ids of all its tracks. */
+export async function scanFolder(folder: FolderRec): Promise<string[]> {
+  if (!folder.handle) return [];
   setScanStatus(`Scanning ${folder.name}…`);
   const found: Found[] = [];
   try {
@@ -293,10 +300,12 @@ export async function scanFolder(folder: FolderRec) {
       `Could not read "${folder.name}" (${(e as Error).name || "error"})${found.length ? `: stopped after ${found.length} files` : ""}. If it was moved or renamed, remove it from Folders (✕) and add it again.`,
     );
   }
-  await addFound(folder.id, found);
+  return addFound(folder.id, found);
 }
 
-async function addFound(folderId: string, found: Found[]) {
+/** Adds the files not in the library yet; returns the ids of all of them that are in it,
+ * in path order. */
+async function addFound(folderId: string, found: Found[]): Promise<string[]> {
   const fresh = found.filter((f) => !byId.has(f.id));
   let done = 0;
   const batch: TrackRec[] = [];
@@ -317,6 +326,10 @@ async function addFound(folderId: string, found: Found[]) {
   setTimeout(() => setScanStatus(""), 3000);
   refresh();
   void analyseMissing();
+  return found
+    .filter((f) => byId.has(f.id))
+    .sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }))
+    .map((f) => f.id);
 }
 
 async function readTags(folderId: string, f: Found, file: File): Promise<TrackRec> {
@@ -516,6 +529,14 @@ export async function savePlaylist(p: PlaylistRec) {
 export async function deletePlaylist(p: PlaylistRec) {
   await db.del("playlists", p.id);
   setPlaylists(playlists().filter((x) => x.id !== p.id));
+}
+
+/** A folder's tracks, in path order. */
+export function folderTrackIds(folderId: string): string[] {
+  return [...byId.values()]
+    .filter((t) => t.folderId === folderId)
+    .sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }))
+    .map((t) => t.id);
 }
 
 export async function addToPlaylist(p: PlaylistRec, ids: string[]) {

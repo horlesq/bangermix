@@ -43,46 +43,47 @@ export function TopBar(p: { openSettings: () => void; openHelp: () => void }) {
         <span class="value">{masterDeck()?.currentBpm() ? masterDeck()!.currentBpm().toFixed(2) : "---.--"}</span>
       </div>
       <FxPanel />
-      <div class="spacer" />
-      <Show when={audioError()}>
-        <span class="pill warn" title={audioError()!}>
-          AUDIO ERROR
+      <div class="topbar-right">
+        <Show when={audioError()}>
+          <span class="pill warn" title={audioError()!}>
+            AUDIO ERROR
+          </span>
+        </Show>
+        <Show when={audioReady() && !audioRunning()}>
+          <span class="pill warn">CLICK TO START AUDIO</span>
+        </Show>
+        <span
+          class="pill"
+          classList={{ lit: (midiState() === "on" && midiDevices().length > 0) || hidDevices().length > 0 }}
+          title={
+            [
+              ...midiDevices().map((d) => `${d.name}: ${d.preset ?? "MIDI learn"}`),
+              ...hidDevices().map((d) => `${d.name}: ${d.status}`),
+            ].join("\n") || "No controller (Settings → Controllers)"
+          }
+        >
+          MIDI
         </span>
-      </Show>
-      <Show when={audioReady() && !audioRunning()}>
-        <span class="pill warn">CLICK TO START AUDIO</span>
-      </Show>
-      <span
-        class="pill"
-        classList={{ lit: (midiState() === "on" && midiDevices().length > 0) || hidDevices().length > 0 }}
-        title={
-          [
-            ...midiDevices().map((d) => `${d.name}: ${d.preset ?? "MIDI learn"}`),
-            ...hidDevices().map((d) => `${d.name}: ${d.status}`),
-          ].join("\n") || "No controller (Settings → Controllers)"
-        }
-      >
-        MIDI
-      </span>
-      <div class="seg">
-        <button classList={{ on: settings.deckCount === 2 }} onClick={() => setSettings("deckCount", 2)}>
-          2 DECK
+        <div class="seg">
+          <button classList={{ on: settings.deckCount === 2 }} onClick={() => setSettings("deckCount", 2)}>
+            2 DECK
+          </button>
+          <button classList={{ on: settings.deckCount === 4 }} onClick={() => setSettings("deckCount", 4)}>
+            4 DECK
+          </button>
+        </div>
+        <button class="rec-btn" classList={{ on: !!rec() }} onClick={toggleRec} title="Record the master output">
+          <IconRecord size={12} />
+          {recTime()}
         </button>
-        <button classList={{ on: settings.deckCount === 4 }} onClick={() => setSettings("deckCount", 4)}>
-          4 DECK
+        <span class="clock">{clock()}</span>
+        <button class="icon" onClick={p.openHelp} title="Shortcuts (F1)">
+          <IconHelp />
+        </button>
+        <button class="icon" onClick={p.openSettings} title="Settings">
+          <IconGear />
         </button>
       </div>
-      <button class="rec-btn" classList={{ on: !!rec() }} onClick={toggleRec} title="Record the master output">
-        <IconRecord size={12} />
-        {recTime()}
-      </button>
-      <span class="clock">{clock()}</span>
-      <button class="icon" onClick={p.openHelp} title="Shortcuts (F1)">
-        <IconHelp />
-      </button>
-      <button class="icon" onClick={p.openSettings} title="Settings">
-        <IconGear />
-      </button>
     </div>
   );
 }

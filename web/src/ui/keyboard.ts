@@ -1,7 +1,7 @@
 // Keyboard shortcuts, by physical key (so they work on any layout). Left hand plays
 // deck 1, right hand deck 2. The list in Help comes from here.
 
-import { moveSelection, selected } from "../state/browser";
+import { moveSelection, pickAll, selected } from "../state/browser";
 import { decks } from "../state/deck";
 import { trackById } from "../state/library";
 import { mixer, setCrossfader } from "../state/mixer";
@@ -75,6 +75,9 @@ export function installKeyboard(extra: { help: () => void; search: () => void })
       if (e.code === "KeyF") {
         e.preventDefault();
         extra.search();
+      } else if (e.code === "KeyA") {
+        e.preventDefault();
+        pickAll();
       }
       return;
     }

@@ -11,9 +11,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "solid-js": "^1.9.20"
+    "solid-js": "^1.9.20",
+    "sql.js": "^1.17.0"
   },
   "devDependencies": {
+    "@types/sql.js": "^1.16.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
     "vite-plugin-solid": "^2.11.17"

@@ -194,16 +194,17 @@ export function DeckPanel(p: { deck: Deck; compact?: boolean }) {
             <button onClick={() => d.loopResize(2)} title="Double the loop">
               2X
             </button>
-            <span class="grow" />
-            <button class="icon" onClick={() => d.beatJump(-d.jumpBeats())} title="Beat jump back">
-              <IconLeft />
-            </button>
-            <select value={d.jumpBeats()} onChange={(e) => d.setJumpBeats(Number(e.currentTarget.value))} title="Beat jump size">
-              <For each={[1, 2, 4, 8, 16, 32, 64]}>{(b) => <option value={b}>{b}</option>}</For>
-            </select>
-            <button class="icon" onClick={() => d.beatJump(d.jumpBeats())} title="Beat jump forward">
-              <IconRight />
-            </button>
+            <span class="jump-group">
+              <button class="icon" onClick={() => d.beatJump(-d.jumpBeats())} title="Beat jump back">
+                <IconLeft />
+              </button>
+              <select value={d.jumpBeats()} onChange={(e) => d.setJumpBeats(Number(e.currentTarget.value))} title="Beat jump size">
+                <For each={[1, 2, 4, 8, 16, 32, 64]}>{(b) => <option value={b}>{b}</option>}</For>
+              </select>
+              <button class="icon" onClick={() => d.beatJump(d.jumpBeats())} title="Beat jump forward">
+                <IconRight />
+              </button>
+            </span>
           </div>
           <Show when={showGrid() && !p.compact}>
             <div class="grid-row">

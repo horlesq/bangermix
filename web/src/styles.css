@@ -1418,6 +1418,27 @@ input[type="number"] {
   text-align: center;
 }
 
+.empty-library p {
+  max-width: 520px;
+  margin: 6px auto;
+}
+
+.empty-library button {
+  margin-top: 8px;
+}
+
+.empty-folders {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin: 10px 0 2px;
+}
+
+.empty-folders button {
+  margin: 0;
+}
+
 .empty-title {
   font: 700 14px var(--font);
   color: var(--text);
@@ -1556,7 +1577,8 @@ input[type="number"] {
   color: var(--cue);
 }
 
-.field:has(> .devices) {
+.field:has(> .devices),
+.field:has(> .usb-lists) {
   align-items: flex-start;
 }
 
@@ -1662,4 +1684,211 @@ kbd {
   flex: none;
   height: 62px !important;
   min-height: 0;
+}
+
+/* USB export */
+.usb-lists {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 6px 8px;
+  background: var(--well);
+  border: 1px solid var(--line);
+}
+
+.usb-lists .count {
+  color: var(--faint);
+  margin-left: 4px;
+}
+
+.usb-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.usb-progress .progress {
+  height: 4px;
+  align-self: stretch;
+}
+
+.usb-report ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: var(--dim);
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.usb-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.usb-actions .primary {
+  background: var(--sync);
+  color: #000;
+  font-weight: 700;
+  border-color: var(--sync);
+}
+
+.usb-actions .primary:disabled {
+  opacity: 0.4;
+}
+
+.modal.usb code {
+  font-family: Consolas, monospace;
+  color: var(--text);
+}
+
+/* ---------- Smaller and portrait screens ---------- */
+
+/* Rows of buttons wrap instead of running into the mixer. */
+.deck-foot,
+.loop-row {
+  flex-wrap: wrap;
+  row-gap: 3px;
+}
+
+.flags {
+  min-width: 0;
+  flex-wrap: wrap;
+  overflow: hidden;
+}
+
+@media (max-width: 1500px) {
+  .jog {
+    width: 128px;
+    height: 128px;
+  }
+}
+
+@media (max-width: 1250px) {
+  .jog {
+    width: 104px;
+    height: 104px;
+  }
+
+  .deck-foot .gap {
+    width: 3px;
+  }
+
+  /* The same states are lit on the buttons below. */
+  .flags {
+    visibility: hidden;
+  }
+}
+
+/* A tall screen has room to spare: bigger waveforms and pads. */
+@media (orientation: portrait) and (min-height: 1300px) {
+  .waverow {
+    height: 120px;
+  }
+
+  .wavestrip.four .waverow {
+    height: 80px;
+  }
+
+  .pad {
+    min-height: 54px;
+  }
+}
+
+/* Too narrow for decks either side of the mixer: the decks stack, the mixer stands
+ * beside them. */
+@media (max-width: 1000px) {
+  .decks-row,
+  .decks-row.four {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .decks-row > :first-child {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .decks-row > :last-child {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .decks-row > .mixer {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    justify-content: center;
+  }
+
+  .jog {
+    width: 128px;
+    height: 128px;
+  }
+}
+
+/* The top bar: tighter before anything has to wrap. */
+@media (max-width: 1400px) {
+  .topbar {
+    gap: 6px;
+  }
+
+  .topbar .clock {
+    display: none;
+  }
+
+  .fx {
+    padding: 0 6px;
+    gap: 4px;
+  }
+}
+
+/* Groups that wrap as one. */
+.jump-group,
+.topbar-right {
+  display: flex;
+  align-items: center;
+}
+
+.jump-group {
+  gap: 3px;
+  margin-left: auto;
+}
+
+.topbar-right {
+  gap: inherit;
+  margin-left: auto;
+  min-height: 36px;
+}
+
+@media (max-width: 1000px) {
+  /* The logo without the name. */
+  .brand {
+    font-size: 0;
+    letter-spacing: 0;
+    padding-right: 0;
+  }
+}
+
+/* If it still doesn't fit, it wraps onto a second line rather than hiding settings off
+ * the edge. */
+.topbar {
+  flex-wrap: wrap;
+  height: auto;
+  min-height: 36px;
+}
+
+/* A fixed height: "100%" of a bar that wraps would be circular. */
+.topbar .fx {
+  height: 36px;
+}
+
+/* Never squeeze the library away: below this the whole window scrolls instead. */
+.app {
+  overflow-y: auto;
+}
+
+.browser {
+  min-height: 260px;
 }

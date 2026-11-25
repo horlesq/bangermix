@@ -17,6 +17,8 @@ interface Exports {
   wk_json_len(): number;
   wk_bytes(): number;
   wk_bytes_len(): number;
+  wk_export_pioneer_db(): number;
+  wk_export_pioneer_track(columnsPerS: number): number;
 }
 
 const ready: Promise<Exports> = WebAssembly.instantiateStreaming(fetch("/wasm/worker.wasm"), {}).then(
@@ -43,8 +45,30 @@ function bytes(w: Exports): Uint8Array {
   return new Uint8Array(w.memory.buffer, w.wk_bytes(), w.wk_bytes_len()).slice();
 }
 
+/** Reads a bundle of files (bm_export::bundle): u32 path length, path, u32 length, bytes. */
+function unbundle(b: Uint8Array): { path: string; data: Uint8Array }[] {
+  const view = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  const files: { path: string; data: Uint8Array }[] = [];
+  for (let o = 0; o < b.length; ) {
+    const n = view.getUint32(o, true);
+    const path = utf8.decode(b.subarray(o + 4, o + 4 + n));
+    o += 4 + n;
+    const len = view.getUint32(o, true);
+    files.push({ path, data: b.slice(o + 4, o + 4 + len) });
+    o += 4 + len;
+  }
+  return files;
+}
+
 function run(w: Exports, req: JobRequest): { result: JobResult; transfer: Transferable[] } {
   const data = new Uint8Array(req.bytes);
+  if (req.op === "pioneerTrack" || req.op === "pioneerDb") {
+    write(w, data, "");
+    const ok = (req.op === "pioneerDb" ? w.wk_export_pioneer_db() : w.wk_export_pioneer_track(req.columnsPerS)) === 0;
+    if (!ok) throw new Error(json(w).error);
+    const files = unbundle(new Uint8Array(w.memory.buffer, w.wk_bytes(), w.wk_bytes_len()));
+    return { result: { files }, transfer: files.map((f) => f.data.buffer) };
+  }
   const extLen = write(w, data, req.ext);
   if (req.op === "probe") {
     const ok = w.wk_probe(extLen) === 0;

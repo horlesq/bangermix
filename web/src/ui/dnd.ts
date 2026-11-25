@@ -4,6 +4,8 @@ import type { Deck } from "../state/deck";
 import { addDropped, trackById } from "../state/library";
 
 export const TRACK_MIME = "application/x-bangermix-track";
+/** A library folder dragged from the sidebar (onto a playlist). */
+export const FOLDER_MIME = "application/x-bangermix-folder";
 
 export function dragLoad(d: Deck) {
   return {
@@ -18,7 +20,8 @@ export function dragLoad(d: Deck) {
       if (!e.dataTransfer) return;
       e.preventDefault();
       e.stopPropagation();
-      const id = e.dataTransfer.getData(TRACK_MIME);
+      // Several dragged tracks: the deck takes the first.
+      const id = e.dataTransfer.getData(TRACK_MIME).split("\n")[0];
       if (id) {
         const t = trackById(id);
         if (t) void d.load(t);

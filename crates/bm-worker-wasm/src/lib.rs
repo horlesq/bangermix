@@ -10,6 +10,10 @@
 //! 4. results are JSON at `wk_json()`/`wk_json_len()`, plus bytes (waveform or cover
 //!    art) at `wk_bytes()`/`wk_bytes_len()`.
 //!
+//! 5. for exports, `wk_input` holds a little-endian u32 JSON length, the JSON, then any
+//!    binary data; `wk_export_pioneer_db()` and `wk_export_pioneer_track(columns_per_s)`
+//!    leave a bundle of files (`bm_export::bundle`) at `wk_bytes()`.
+//!
 //! Each call returns 0 on success; on failure the JSON is `{"error": ...}`.
 
 use bm_analysis::TempoRange;
@@ -155,7 +159,8 @@ pub extern "C" fn wk_probe(ext_len: u32) -> i32 {
         json!({
             "title": t.title, "artist": t.artist, "album": t.album, "genre": t.genre,
             "comment": t.comment, "year": t.year, "bpm": t.bpm, "key": t.key,
-            "duration": t.duration_s, "sampleRate": t.sample_rate, "artType": art_type,
+            "duration": t.duration_s, "sampleRate": t.sample_rate, "bitDepth": t.bits_per_sample,
+            "artType": art_type,
         })
     });
     finish(result)
@@ -179,4 +184,49 @@ pub extern "C" fn wk_bytes() -> *const u8 {
 #[no_mangle]
 pub extern "C" fn wk_bytes_len() -> u32 {
     state().bytes.len() as u32
+}
+
+/// Splits the input into its JSON and the binary data after it.
+fn json_and_data(input: &[u8]) -> Result<(&str, &[u8]), String> {
+    let n = input
+        .get(..4)
+        .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]) as usize)
+        .ok_or("no input")?;
+    let json = input.get(4..4 + n).ok_or("input shorter than its JSON")?;
+    let json = std::str::from_utf8(json).map_err(|e| e.to_string())?;
+    Ok((json, &input[4 + n..]))
+}
+
+/// The Pioneer device library (export.pdb and setting files) for a
+/// `bm_export::model::Library` given as JSON.
+#[no_mangle]
+pub extern "C" fn wk_export_pioneer_db() -> i32 {
+    let s = state();
+    let input = std::mem::take(&mut s.input);
+    s.bytes.clear();
+    let result = json_and_data(&input).and_then(|(json, _)| {
+        let library: bm_export::model::Library =
+            serde_json::from_str(json).map_err(|e| e.to_string())?;
+        let files = bm_export::pioneer::database(&library)?;
+        state().bytes = bm_export::bundle(&files);
+        Ok(json!({ "files": files.len() }))
+    });
+    finish(result)
+}
+
+/// One track's Pioneer analysis files, for a `bm_export::model::Track` as JSON followed
+/// by its waveform.
+#[no_mangle]
+pub extern "C" fn wk_export_pioneer_track(columns_per_s: f64) -> i32 {
+    let s = state();
+    let input = std::mem::take(&mut s.input);
+    s.bytes.clear();
+    let result = json_and_data(&input).and_then(|(json, waveform)| {
+        let track: bm_export::model::Track =
+            serde_json::from_str(json).map_err(|e| e.to_string())?;
+        let files = bm_export::pioneer::track_files(&track, waveform, columns_per_s);
+        state().bytes = bm_export::bundle(&files);
+        Ok(json!({ "files": files.len() }))
+    });
+    finish(result)
 }

@@ -1,13 +1,15 @@
 import { Show, createEffect, createSignal, on, onMount } from "solid-js";
 import { initHid } from "./midi/hid";
+import { UsbExport, setUsbOpen, usbOpen } from "./ui/UsbExport";
 import { enableMidi } from "./midi/midi";
 import { P } from "./audio/params";
 import { audioReady, maybeEngine, startAudio, toast } from "./state/app";
+import { shownPlaylist } from "./state/browser";
 import { decks } from "./state/deck";
 import { addDropped, foldersNeedingAccess, loadLibrary, reconnect } from "./state/library";
 import { applyAll, applyChannel } from "./state/mixer";
 import { persistSettings, settings } from "./state/settings";
-import { Browser } from "./ui/Browser";
+import { Browser, addTracksTo } from "./ui/Browser";
 import { DeckPanel } from "./ui/DeckPanel";
 import { Help } from "./ui/Help";
 import { MixerPanel } from "./ui/MixerPanel";
@@ -59,7 +61,9 @@ export function App() {
   const onDrop = (e: DragEvent) => {
     if (!e.dataTransfer?.types.includes("Files")) return;
     e.preventDefault();
-    void addDropped(e.dataTransfer.items);
+    // Dropped while a playlist is open: the files go into it too.
+    const into = shownPlaylist();
+    void addDropped(e.dataTransfer.items).then((ids) => into && addTracksTo(into.id, ids));
   };
 
   return (
@@ -99,6 +103,9 @@ export function App() {
       <Browser />
       <Show when={toast()}>
         <div class="toast">{toast()}</div>
+      </Show>
+      <Show when={usbOpen()}>
+        <UsbExport close={() => setUsbOpen(false)} />
       </Show>
       <Show when={showSettings()}>
         <Settings close={() => setShowSettings(false)} />

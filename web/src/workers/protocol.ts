@@ -2,8 +2,9 @@
 
 export interface JobRequest {
   /** decode: stereo audio for a deck (optionally analysed too); analyse: analysis
-   * only, from a mono decode; probe: tags only. */
-  op: "decode" | "analyse" | "probe";
+   * only, from a mono decode; probe: tags only; pioneerTrack / pioneerDb: Pioneer USB
+   * export files, from `bytes` = u32 JSON length, JSON, then a waveform (crates/bm-export). */
+  op: "decode" | "analyse" | "probe" | "pioneerTrack" | "pioneerDb";
   bytes: ArrayBuffer;
   ext: string;
   analyse?: boolean;
@@ -33,6 +34,7 @@ export interface TagsResult {
   key?: string;
   duration?: number;
   sampleRate?: number;
+  bitDepth?: number;
   artType?: string;
   art: Uint8Array | null;
 }
@@ -44,4 +46,6 @@ export interface JobResult {
   analysis?: AnalysisResult;
   waveform?: Uint8Array;
   tags?: TagsResult;
+  /** Export files: path from the device root, and contents. */
+  files?: { path: string; data: Uint8Array }[];
 }

@@ -1,0 +1,479 @@
+// Copyright (c) 2026 Jan Holthuis <jan.holthuis@rub.de>
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
+// of the MPL was not distributed with this file, You can obtain one at
+// http://mozilla.org/MPL/2.0/.
+//
+// SPDX-License-Identifier: MPL-2.0
+
+//! Common types used in multiple modules.
+
+use std::io::{Read, Seek, SeekFrom, Write};
+
+use crate::pdb::string::StringError;
+use crate::pdb::{PageIndex, PageType};
+use binrw::{binrw, file_ptr::IntoSeekFrom, BinRead, BinResult, BinWrite, Endian};
+#[cfg(feature = "json")]
+use serde::{Serialize, Serializer};
+use thiserror::Error;
+
+/// Helper function to serialize a slice of bytes as a hex string.
+#[cfg(feature = "json")]
+pub fn serialize_as_hex<S>(data: &[u8], serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let mut hex = String::with_capacity(2 + data.len() * 2);
+    hex.push_str("0x");
+    hex.push_str(&faster_hex::hex_string(data));
+    serializer.serialize_str(&hex)
+}
+
+/// Which kind of row a foreign key points at. Used by
+/// [`RekordcrateError::UnknownForeignKey`] to identify the missing reference.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ForeignKeyKind {
+    /// A track row.
+    Track,
+    /// A playlist-tree node.
+    PlaylistNode,
+    /// A tag category.
+    TagCategory,
+}
+
+/// Enumerates errors returned by this library.
+#[derive(Error, Debug)]
+#[non_exhaustive]
+pub enum RekordcrateError {
+    /// Represents a failure to decode a DeviceSQL string.
+    #[error(transparent)]
+    StringError(#[from] StringError),
+
+    /// Represents a failure to read or write a binary format via `binrw` (covers both parse and
+    /// serialization errors).
+    #[error(transparent)]
+    BinrwError(#[from] binrw::Error),
+
+    /// Represents a failure to validate a constraint.
+    #[error("failed integrity constraint: {0}")]
+    IntegrityError(&'static str),
+
+    /// Represents an `std::io::Error`.
+    #[error(transparent)]
+    IOError(#[from] std::io::Error),
+
+    /// Represents an `std::io::Error`.
+    #[error("component not loaded")]
+    NotLoadedError,
+
+    /// Represents a failure to handle the PDB database.
+    #[error(transparent)]
+    PdbError(#[from] crate::pdb::PdbError),
+
+    /// Represents a failure to locate a table.
+    #[error("Table not present in database: {0:?}")]
+    TableNotPresent(TableIndex),
+
+    /// Represents a failure to locate a table by page type.
+    #[error("Page type not present in database: {0:?}")]
+    TableTypeNotPresent(PageType),
+
+    /// Represents a failure to locate a page.
+    #[error("Page not present in database: {0:?}")]
+    PageNotPresent(PageIndex),
+
+    /// Represents a breach of the expectation that the pages do not form a cycle.
+    #[error("Page list contains a cycle at page: {0:?}")]
+    PageOrderViolation(PageIndex),
+
+    /// Represents an `quick_xml::DeError`.
+    #[cfg(feature = "xml")]
+    #[error(transparent)]
+    XmlDeserializationFailed(#[from] quick_xml::DeError),
+
+    /// Represents a `serde_json::Error` from serializing dump output.
+    #[cfg(feature = "json")]
+    #[error(transparent)]
+    JsonSerializationFailed(#[from] serde_json::Error),
+
+    /// A row referenced a foreign key (track id, playlist node id, ...) that does not exist.
+    #[error("unknown foreign key: {kind:?} id={id}")]
+    UnknownForeignKey {
+        /// Which kind of referenced row was missing.
+        kind: ForeignKeyKind,
+        /// The id that did not resolve to a row.
+        id: u32,
+    },
+
+    /// A tag or tag category name is too long to fit in a tag row.
+    #[error("tag name too long: {0:?}")]
+    TagNameTooLong(String),
+
+    /// Artwork image processing failed (decoding, resizing, or writing). Only constructed under the
+    /// `artwork` feature, but the variant is unconditional so it does not leak the `image` crate
+    /// into the public error type.
+    #[error("artwork error for {path:?}: {message}")]
+    ArtworkError {
+        /// Path of the artwork file involved (source or destination).
+        path: std::path::PathBuf,
+        /// Human-readable detail from the underlying failure.
+        message: String,
+    },
+}
+
+/// Type alias for results where the error is a `RekordcrateError`.
+pub type RekordcrateResult<T> = std::result::Result<T, RekordcrateError>;
+
+/// Wrapper for types which may be automatically calculated if not
+/// provided by the user, or may be explicitly set when parsing existing data.
+#[derive(Debug, PartialEq, Clone, Eq)]
+#[cfg_attr(feature = "json", derive(Serialize))]
+pub enum MaybeCalculated<T> {
+    /// Value is calculated from some other value during serialization.
+    Calculated,
+    /// Value is explicitly provided.
+    Provided(T),
+}
+
+/// Index of a table in the PDB header.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Copy)]
+pub struct TableIndex(pub(crate) usize);
+
+impl From<usize> for TableIndex {
+    fn from(value: usize) -> Self {
+        Self(value)
+    }
+}
+
+/// Indexed Color identifiers used for memory cues and tracks.
+#[binrw]
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
+#[cfg_attr(feature = "json", derive(Serialize))]
+pub enum ColorIndex {
+    /// No color.
+    #[brw(magic = 0u8)]
+    #[default]
+    None,
+    /// Pink color.
+    #[brw(magic = 1u8)]
+    Pink,
+    /// Red color.
+    #[brw(magic = 2u8)]
+    Red,
+    /// Orange color.
+    #[brw(magic = 3u8)]
+    Orange,
+    /// Yellow color.
+    #[brw(magic = 4u8)]
+    Yellow,
+    /// Green color.
+    #[brw(magic = 5u8)]
+    Green,
+    /// Aqua color.
+    #[brw(magic = 6u8)]
+    Aqua,
+    /// Blue color.
+    #[brw(magic = 7u8)]
+    Blue,
+    /// Purple color.
+    #[brw(magic = 8u8)]
+    Purple,
+}
+
+/// Track file type.
+#[binrw]
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
+#[cfg_attr(feature = "json", derive(Serialize))]
+pub enum FileType {
+    /// Unknown file type.
+    #[brw(magic = 0x0u16)]
+    #[default]
+    Unknown,
+    /// MP3.
+    #[brw(magic = 0x1u16)]
+    Mp3,
+    /// M4A.
+    #[brw(magic = 0x4u16)]
+    M4a,
+    /// FLAC.
+    #[brw(magic = 0x5u16)]
+    Flac,
+    /// WAV.
+    #[brw(magic = 0xbu16)]
+    Wav,
+    /// AIFF.
+    #[brw(magic = 0xcu16)]
+    Aiff,
+    /// Value that we haven't seen before.
+    Other(u16),
+}
+
+/// Track rating on a 0–5 star scale. The PDB encodes this as a raw byte `0..=5`, confirmed against
+/// a real Rekordbox export (not the XML's `0/51/102/153/204/255`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Rating {
+    /// 0 stars (unrated).
+    #[default]
+    Zero,
+    /// 1 star.
+    One,
+    /// 2 stars.
+    Two,
+    /// 3 stars.
+    Three,
+    /// 4 stars.
+    Four,
+    /// 5 stars.
+    Five,
+}
+
+impl Rating {
+    /// Construct from a raw star count. Values above 5 clamp to [`Rating::Five`].
+    #[must_use]
+    pub fn from_stars(n: u8) -> Self {
+        match n.min(5) {
+            0 => Self::Zero,
+            1 => Self::One,
+            2 => Self::Two,
+            3 => Self::Three,
+            4 => Self::Four,
+            _ => Self::Five,
+        }
+    }
+
+    /// The raw byte written to the PDB.
+    #[must_use]
+    pub fn to_byte(self) -> u8 {
+        match self {
+            Self::Zero => 0,
+            Self::One => 1,
+            Self::Two => 2,
+            Self::Three => 3,
+            Self::Four => 4,
+            Self::Five => 5,
+        }
+    }
+}
+
+impl From<Rating> for u8 {
+    fn from(rating: Rating) -> u8 {
+        rating.to_byte()
+    }
+}
+
+impl From<u8> for Rating {
+    fn from(n: u8) -> Self {
+        Self::from_stars(n)
+    }
+}
+
+/// Parses a sequence of values with `BinRead` from the offsets provided by the iterator.
+pub(crate) fn parse_at_offsets<Offset, Value, T, Args, It, Reader>(
+    it: It,
+) -> impl FnOnce(&mut Reader, Endian, Args) -> BinResult<T>
+where
+    Offset: IntoSeekFrom,
+    Value: for<'a> BinRead<Args<'a> = Args>,
+    T: FromIterator<(Offset, Value)>,
+    Args: Clone,
+    It: IntoIterator<Item = Offset>,
+    Reader: Read + Seek,
+{
+    move |reader, endian, args| {
+        let base = reader.stream_position()?;
+        it.into_iter()
+            .map(|offset| {
+                reader.seek(offset.into_seek_from())?;
+                let v = Value::read_options(reader, endian, args.clone())?;
+                // Restore position after each item.
+                reader.seek(SeekFrom::Start(base))?;
+                Ok((offset, v))
+            })
+            .collect()
+    }
+}
+
+/// Writes a sequence of values with `BinWrite` at the offsets provided by the iterator.
+pub(crate) fn write_at_offsets<Offset, Value, T, Args, Writer>(
+    t: &T,
+    writer: &mut Writer,
+    endian: Endian,
+    args: Args,
+) -> BinResult<()>
+where
+    Offset: IntoSeekFrom,
+    Value: for<'a> BinWrite<Args<'a> = Args>,
+    for<'a> &'a T: IntoIterator<Item = (&'a Offset, &'a Value)>,
+    Args: Clone,
+    Writer: Write + Seek,
+{
+    let base = writer.stream_position()?;
+    t.into_iter().try_for_each(|(offset, v)| {
+        writer.seek(offset.into_seek_from())?;
+        v.write_options(writer, endian, args.clone())?;
+        // Restore position after each item.
+        writer.seek(SeekFrom::Start(base))?;
+        Ok(())
+    })
+}
+
+/// align given value to the alignment requirements by the given type.
+#[must_use]
+pub const fn align_by(alignment: u64, mut offset: u64) -> u64 {
+    // This is technically dependent on the compile time ABI
+    // but for x86 (which this is likely compiled on), we should be able
+    // to assume that
+    // the alignment of a type is just the size of its largest
+    // member. That likely matches the assumptions made for the 32-bit
+    // MCU (Renesas R8A77240D500BG) built into the different CDJ-2000 variants.
+    // In either way, its better to overshoot the alignment
+    // than to undershoot it. For CDJ-3000s, this assumption
+    // is likely also correct since they use a 64-bit ARM CPU (Renesas R8A774C0HA01BG)
+    if !offset.is_multiple_of(alignment) {
+        offset += alignment - (offset % alignment);
+    }
+    offset
+}
+
+pub(crate) trait ArrayPolyfills<T, const N: usize> {
+    fn try_map_polyfill<U, E>(self, f: impl FnMut(T) -> Result<U, E>) -> Result<[U; N], E>;
+    fn zip_polyfill<U>(self, other: [U; N]) -> [(T, U); N];
+}
+
+impl<T, const N: usize> ArrayPolyfills<T, N> for [T; N] {
+    fn try_map_polyfill<U, E>(self, f: impl FnMut(T) -> Result<U, E>) -> Result<[U; N], E> {
+        let results = self.map(f);
+        let has_error = results.iter().any(|r| r.is_err());
+        if has_error {
+            return Err(results.into_iter().find_map(|r| r.err()).unwrap());
+        }
+        Ok(results.map(|r| match r {
+            Ok(v) => v,
+            Err(_) => unreachable!(),
+        }))
+    }
+
+    fn zip_polyfill<U>(self, other: [U; N]) -> [(T, U); N] {
+        // With a bit of luck the compiler will optimize all of this to avoid
+        // all of the Option packing and unpacking.
+        let mut a = self.map(Some);
+        let mut b = other.map(Some);
+        let mut result: [Option<(T, U)>; N] = [const { None }; _];
+        for i in 0..N {
+            result[i] = Some((a[i].take().unwrap(), b[i].take().unwrap()));
+        }
+        result.map(|opt| match opt {
+            Some(v) => v,
+            None => unreachable!(),
+        })
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod testing {
+    use binrw::{
+        meta::{ReadEndian, WriteEndian},
+        prelude::*,
+        Endian,
+    };
+    use pretty_assertions::assert_eq;
+    use pretty_hex::pretty_hex;
+
+    macro_rules! assert_eq_hex {
+        ($cond:expr, $expected:expr) => {
+            assert_eq!(pretty_hex($cond), pretty_hex($expected));
+        };
+    }
+
+    pub fn test_write<'a, T>(bin: &[u8], obj: &T, args: <T as binrw::BinWrite>::Args<'a>)
+    where
+        T: BinWrite + PartialEq + core::fmt::Debug + WriteEndian,
+    {
+        let endian = Endian::NATIVE;
+        // T->binary
+        let mut writer = binrw::io::Cursor::new(Vec::with_capacity(bin.len()));
+        obj.write_options(&mut writer, endian, args).unwrap();
+        assert_eq_hex!(&writer.get_ref(), &bin);
+    }
+
+    pub fn test_roundtrip_with_args<'a, T>(
+        bin: &[u8],
+        obj: T,
+        read_args: <T as binrw::BinRead>::Args<'a>,
+        write_args: <T as binrw::BinWrite>::Args<'a>,
+    ) where
+        <T as binrw::BinRead>::Args<'a>: Clone,
+        <T as binrw::BinWrite>::Args<'a>: Clone,
+        T: BinRead + BinWrite + PartialEq + core::fmt::Debug + ReadEndian + WriteEndian,
+    {
+        let endian = Endian::NATIVE;
+        // T->binary
+        let mut writer = binrw::io::Cursor::new(Vec::with_capacity(bin.len()));
+        obj.write_options(&mut writer, endian, write_args.clone())
+            .unwrap();
+        assert_eq_hex!(&writer.get_ref(), &bin);
+        // T->binary->T
+        writer.set_position(0);
+        let parsed = T::read_options(&mut writer, endian, read_args.clone()).unwrap();
+        assert_eq!(parsed, obj);
+        // binary->T
+        let mut cursor = binrw::io::Cursor::new(bin);
+        let parsed = T::read_options(&mut cursor, endian, read_args.clone()).unwrap();
+        assert_eq!(parsed, obj);
+        // binary->T->binary
+        writer.set_position(0);
+        parsed
+            .write_options(&mut writer, endian, write_args.clone())
+            .unwrap();
+        assert_eq_hex!(&bin, &writer.get_ref());
+    }
+
+    pub fn test_roundtrip<'a, T>(bin: &[u8], obj: T)
+    where
+        <T as binrw::BinRead>::Args<'a>: Default + Clone,
+        <T as binrw::BinWrite>::Args<'a>: Default + Clone,
+        T: BinRead + BinWrite + PartialEq + core::fmt::Debug + ReadEndian + WriteEndian,
+    {
+        test_roundtrip_with_args(
+            bin,
+            obj,
+            <T as binrw::BinRead>::Args::default(),
+            <T as binrw::BinWrite>::Args::default(),
+        );
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::{collections::BTreeMap, io::Cursor};
+
+    #[test]
+    fn test_parse_at_offsets() {
+        // Little-endian u16 values at offsets 0, 2, 5, 7 with garbage 4th byte.
+        const DATA: &[u8] = &[0x01, 0x00, 0x02, 0x00, 0xFF, 0x03, 0x00, 0x04, 0x00];
+        const OFFSETS: &[u64] = &[0, 7, 2, 5];
+        let mut cursor = Cursor::new(DATA);
+        let serialized: BTreeMap<u64, u16> =
+            parse_at_offsets(OFFSETS.iter().copied())(&mut cursor, Endian::Little, ()).unwrap();
+        let expected = BTreeMap::from([(0u64, 1u16), (7, 4), (2, 2), (5, 3)]);
+        assert_eq!(serialized, expected);
+
+        // We also expect the cursor position to be restored.
+        assert_eq!(cursor.stream_position().unwrap(), 0);
+    }
+
+    #[test]
+    fn test_write_at_offsets() {
+        // Little-endian u16 values at offsets 0, 2, 5, 7 with skipped 4th byte.
+        const EXPECTED: &[u8] = &[0x01, 0x00, 0x02, 0x00, 0x00, 0x03, 0x00, 0x04, 0x00];
+        let serialized: BTreeMap<u64, u16> =
+            vec![(0, 1), (7, 4), (2, 2), (5, 3)].into_iter().collect();
+        let mut cursor = Cursor::new(Vec::with_capacity(EXPECTED.len()));
+        write_at_offsets(&serialized, &mut cursor, Endian::Little, ()).unwrap();
+        assert_eq!(&cursor.get_ref()[..], EXPECTED);
+
+        // We also expect the cursor position to be restored.
+        assert_eq!(cursor.stream_position().unwrap(), 0);
+    }
+}

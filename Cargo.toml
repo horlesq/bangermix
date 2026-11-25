@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
 members = ["crates/*"]
+# Vendored code is built as a dependency, not linted or tested as ours.
+exclude = ["third_party"]
 
 [workspace.package]
 version = "0.1.0"
@@ -12,6 +14,7 @@ bm-dsp = { path = "crates/bm-dsp" }
 bm-engine = { path = "crates/bm-engine" }
 bm-analysis = { path = "crates/bm-analysis" }
 bm-decode = { path = "crates/bm-decode" }
+bm-export = { path = "crates/bm-export" }
 rustfft = "6"
 symphonia = { version = "0.5", features = ["all"] }
 serde = { version = "1", features = ["derive"] }
