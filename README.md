@@ -1,66 +1,166 @@
-# bangermix
+<p align="center">
+  <img src="web/public/icon.svg" width="72" alt="" />
+</p>
 
-A DJ app in the browser, laid out like the classic two-deck performance screen: scrolling 3-band waveforms on top, decks either side of a mixer, the library below. Everything runs on your computer: audio, analysis and the library. Nothing is uploaded. It goes online at **bangermix.horly.dev** as static files.
+<h1 align="center">BangerMix</h1>
 
-**Status (25 November 2026):** two or four decks, sync, keylock and key shift, loops, hot cues, beat FX, recording, a library from your music folder with rekordbox import, keyboard and mouse control, about 50 Pioneer, Traktor, Numark and Denon controllers, USB export for CDJs, XDJs and Denon players, and offline use. Tested in Chrome with generated tracks, simulated controller messages, and exports read back by rekordcrate and checked against libdjinterop's schema; not yet with a real controller or player. See [PLAN.md](PLAN.md) for what comes next.
+<p align="center">
+  A DJ app that runs in your browser or on your desktop.<br />
+  Two or four decks, synced mixing, controllers, and USB export for CDJs and Denon players.
+</p>
 
-## Run it
-Needs Rust (stable, with `rustup target add wasm32-unknown-unknown`) and Node.js 22+. On Windows, run the commands from PowerShell.
-From the repository root (or from `web/`, same commands):
+<p align="center">
+  <a href="https://bangermix.horly.dev"><b>Open in the browser</b></a> ·
+  <a href="https://github.com/horlesq/bangermix/releases"><b>Download the desktop app</b></a>
+</p>
+
+![BangerMix with two decks playing in sync](docs/images/screenshot.png)
+
+Everything runs on your computer: the audio engine, track analysis and your library. Nothing is uploaded.
+
+## Contents
+- [Features](#features)
+- [Getting started](#getting-started)
+- [Using BangerMix](#using-bangermix)
+- [Controllers](#controllers)
+- [USB export for CDJs and Denon players](#usb-export-for-cdjs-and-denon-players)
+- [Development](#development)
+- [How it works](#how-it-works)
+- [Credits and licences](#credits-and-licences)
+
+## Features
+| | |
+|---|---|
+| **Decks** | 2 or 4 decks, scrolling 3-band waveforms, beat sync, keylock and key shift, loops, beat jump, slip, reverse, 8 hot cues with names and colours |
+| **Mixer** | 3-band EQ, filter, trim, crossfader, beat FX, headphone cue on a second output or a split cable |
+| **Library** | Your music folders, playlists, BPM and key analysis with beat grids, rekordbox XML import, search by title, artist, key or BPM |
+| **Controllers** | About 50 Pioneer, Traktor, Numark and Denon controllers through the Mixxx project's mappings, plus MIDI learn for anything else |
+| **USB export** | A stick that CDJ/XDJ and Denon players read like rekordbox's own: grids, cues, loops and waveforms |
+| **Everywhere** | Works offline once loaded; a desktop app for Windows, macOS and Linux; mouse and keyboard play without any controller |
+
+![Four-deck mode](docs/images/four-decks.png)
+
+## Getting started
+**In the browser:** open [bangermix.horly.dev](https://bangermix.horly.dev) in **Chrome or Edge**. Other browsers play music too, but they can't use controllers, remember your music folder or pick the audio output.
+
+**Desktop app:** download it from [Releases](https://github.com/horlesq/bangermix/releases) (Windows installer, macOS disk image, Linux AppImage). It works like Chrome without the permission prompts: controllers, folders and audio outputs just work, and it keeps playing in the background. The builds aren't code-signed yet, so the first start warns you:
+- **Windows:** *More info → Run anyway*.
+- **macOS:** right-click the app → *Open*.
+
+Then:
+1. **Add your music.** Press *Add music folder*, or drop files and folders onto the window. Tracks are analysed in the background: BPM, beat grid, key and waveform.
+2. **Load a track.** Double-click it, or drag it onto a deck.
+3. **Mix.** Press play, then SYNC on the other deck.
+
+## Using BangerMix
+### Library and playlists
+- **Folders:** BangerMix remembers your music folders. After a browser restart it may ask for one click (*Reconnect*) before it can read them again.
+- **Playlists:** press **+** beside PLAYLISTS. Fill a playlist as you would in rekordbox:
+  - drag tracks onto its name; Ctrl-click, Shift-click or `Ctrl A` selects several;
+  - right-click a track → *Add to…*;
+  - drag a whole folder from the sidebar onto it.
+- **rekordbox import:** in rekordbox, File → Export Collection in xml format. Add the same music folders here, then Settings → Library → Import. Grids, keys, cues, loops, ratings and playlists come across.
+
+### Playing
+- **Pads** have three modes: HOT CUE, BEAT LOOP and BEAT JUMP.
+- **Keylock:** MT keeps the pitch when the tempo changes. − / + shifts the key, and KEY SYNC matches the master deck's key.
+- **Mouse:** drag knobs and faders. Double-click resets them, and Shift gives fine moves. Drag a waveform or jog wheel to scratch, or to nudge with *Vinyl* off. Scroll a waveform to zoom.
+- **Headphones:** Settings → Audio. A controller with a 4-output sound card puts the headphones on outputs 3–4. You can also pick a separate device, or *split* one stereo output: master on the left, headphones on the right.
+- **Recording:** ● REC records the master output and saves a `.webm` file when you stop.
+
+### Keyboard
+Press `F1` in the app for the full list.
+
+| | Deck 1 (left hand) | Deck 2 (right hand) |
+|---|---|---|
+| Load the selected track | `E` | `I` |
+| Cue / play | `Z` / `X` | `M` / `,` |
+| Sync | `C` | `.` |
+| Keylock | `D` | `J` |
+| Hot cues | `1`–`4` | `7`–`0` |
+
+`↑` `↓` move through the track list, and `Ctrl F` searches. In the desktop app, `F11` toggles full screen and `Ctrl +` / `Ctrl −` / `Ctrl 0` zoom the interface.
+
+## Controllers
+Settings → Controllers → *Connect MIDI controllers*. BangerMix recognises a controller by its name and loads its mapping; you can choose another mapping in the same place.
+
+- **Pioneer, Traktor, Numark and Denon:** about 50 models, listed under *Supported controllers*. They use mappings from the [Mixxx](https://mixxx.org) project.
+- **Traktor Kontrol:** most models are HID devices rather than MIDI. Connect them with *Connect a HID controller*.
+- **Anything else:** MIDI learn, one control at a time.
+
+The mappings have been tested with simulated controller messages, not yet with real hardware.
+
+## USB export for CDJs and Denon players
+![The USB export dialog](docs/images/usb-export.png)
+
+Press the USB button beside PLAYLISTS, tick the playlists and the players, then pick the root of the stick (FAT32 or exFAT).
+
+| Players | What goes on the stick |
+|---|---|
+| **Pioneer DJ / AlphaTheta** CDJ and XDJ | A rekordbox device library in `PIONEER/`: beat grids, hot cues with colours and names, memory cues, loops, and waveforms for every player generation up to the CDJ-3000 |
+| **Denon DJ** Prime and SC series (Engine 4.1 or newer) | An Engine DJ library in `Engine Library/` with the same grids, cues, loops and waveforms |
+
+- **One stick for both:** the music is copied once into `Contents/`, so one stick can serve both kinds of player.
+- **Exporting again** only copies new files.
+- **Not supported yet:** the OPUS-QUAD and OMNIS-DUO need rekordbox's newer *Device Library Plus*, which isn't written yet.
+- **Not tried on hardware yet.** The exports are checked against open-source readers of both formats.
+
+## Development
+You need Rust (stable, with `rustup target add wasm32-unknown-unknown`) and Node.js 22 or newer. On Windows, use PowerShell. From the repository root:
+
 ```sh
-npm install        # installs the web app's packages (in web/)
-npm run dev        # builds the WebAssembly, then serves http://localhost:5173
-npm run build      # production build in web/dist
-npm run preview    # serve the build
+npm install            # packages for the web app (web/) and the desktop app (desktop/)
+npm run dev            # builds the WebAssembly, then serves http://localhost:5173
+npm run build          # production build in web/dist
+npm run preview        # serves the build
+npm test               # Rust tests (cargo test --workspace)
+
+npm run desktop        # builds the web app and opens it in the desktop app
+npm run desktop:dist   # packages it: desktop/dist/BangerMix-Setup-<version>.exe on Windows
 ```
-Rust tests: `cargo test --workspace` from the repository root.
+`npm --prefix desktop run dev` opens the dev server in the desktop window instead. `Ctrl+Shift+I` opens the developer tools there.
 
-Use Chrome or Edge. Other browsers play too, but they don't remember your music folder between visits (drop the files in again) and don't support MIDI or choosing the output device.
+### Releases and deployment
+- **Website:** every push to `main` is built by CI and deployed to Cloudflare Pages (bangermix.horly.dev). That needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Pages must send the headers in `web/public/_headers`, because without them the browser withholds the shared memory the engine uses.
+- **Desktop app:** push a tag such as `v0.2.0`. The *Desktop* workflow builds the Windows installer, the macOS disk image (Apple Silicon and Intel) and the Linux AppImage, then publishes them as a GitHub release of that version. *Run workflow* on the Actions page builds them without releasing.
 
-## Using it
-- **Music:** *Add a music folder* (Chrome remembers it; after a restart it asks for one click to read it again), or drop files and folders anywhere on the window. Tracks are analysed in the background: BPM, beat grid, key, waveform.
-- **Load:** double-click a track, drag it onto a deck, or select it and press `E` (deck 1) / `I` (deck 2).
-- **Playlists:** + beside PLAYLISTS. Fill one as in rekordbox: drag tracks onto its name (Ctrl-click, Shift-click or `Ctrl A` to take several), right-click → *Add to…*, or drag a whole folder from the sidebar. An empty playlist offers its folders as buttons; files dropped on the window while a playlist is open go into it.
-- **rekordbox:** export your collection (File → Export Collection in xml format), add the same music folders here, then Settings → Library → Import. Grids, keys, cues, loops, ratings and playlists come across.
-- **Pads:** HOT CUE, BEAT LOOP and BEAT JUMP modes, as on a controller.
-- **Keylock:** MT keeps the pitch when the tempo moves; − / + shifts the key; KEY SYNC shifts it into the master deck's key.
-- **Mouse:** knobs and faders drag, double-click resets, Shift for fine moves. Drag a waveform or jog wheel to scratch (or nudge with *Vinyl* off). Scroll a waveform to zoom.
-- **Keyboard:** `F1` lists every shortcut. Deck 1 is on the left hand (`Z` cue, `X` play, `C` sync, `D` keylock, `1–4` hot cues), deck 2 on the right (`M` cue, `,` play, `.` sync, `J` keylock, `7–0` hot cues).
-- **Headphone cue:** Settings → Audio. A controller's 4-output sound card puts the headphones on outputs 3–4. Or pick a separate device for the headphones (USB headphones, a second sound card). With one plain stereo output, *split* puts the master in mono on the left and the headphones on the right (for a splitter cable).
-- **Controllers:** Settings → Controllers → *Connect MIDI controllers*. A controller is recognised by its name and gets its mapping; you can pick another in the same place. Pioneer, Traktor, Numark and Denon controllers (about 50, listed under *Supported controllers*) use the Mixxx project's mappings, run through a compatibility layer. Most Traktor Kontrol models are HID devices, not MIDI: connect them with *Connect a HID controller*. Anything else: MIDI learn, one control at a time.
-- **Recording:** ● REC records the master and saves a `.webm` file when stopped.
-- **USB export:** the USB button beside PLAYLISTS. Tick playlists (or the whole collection), tick Pioneer and/or Denon, then pick the root of the stick (FAT32 or exFAT). The music is copied to `Contents/`; for Pioneer CDJ/XDJ players a rekordbox device library goes in `PIONEER/` (beat grids, hot cues with colours and names, memory cues, loops, waveforms for every player generation up to the CDJ-3000), for Denon players an Engine DJ library in `Engine Library/` (Engine 4.1 or newer). Both can share one stick. Exporting again only copies new files. Not written: rekordbox's newer Device Library Plus, which the OPUS-QUAD and OMNIS-DUO need.
+## How it works
+The audio engine is written in Rust, compiled to WebAssembly and run on the browser's audio thread. The interface sends it parameter changes and reads its state (positions, meters) from shared memory every frame. Decoding and analysis run in a pool of Web Workers, with one kept free so loading a deck never waits behind library analysis. The desktop app is the same web build in Electron, served from a private `app://` origin.
 
-## How it is built
 ```
 crates/
-  bm-dsp          filters, 3-band isolator EQ, DJ filter, limiter, interpolation (from double-drop)
-  bm-engine       decks, mixer, sync, loops, slip, scratch, keylock (WSOLA), beat FX; never allocates while rendering
-  bm-analysis     tempo, beat grid, downbeat, key, loudness, waveform data (from double-drop)
-  bm-decode       MP3/FLAC/WAV/AIFF/M4A/Ogg and tags, via Symphonia (from double-drop)
-  bm-engine-wasm  the engine for the AudioWorklet (plain C-ABI exports, no wasm-bindgen)
-  bm-export       USB exports: rekordbox device library (export.pdb, ANLZ analysis files)
-  bm-worker-wasm  decoding, analysis and exports for Web Workers (plain C-ABI exports)
+  bm-dsp          filters, 3-band isolator EQ, DJ filter, limiter, interpolation
+  bm-engine       decks, mixer, sync, loops, slip, scratch, keylock (WSOLA), beat FX;
+                  never allocates while rendering
+  bm-analysis     tempo, beat grid, downbeat, key, loudness, waveform data
+  bm-decode       MP3/FLAC/WAV/AIFF/M4A/Ogg and tags, via Symphonia
+  bm-engine-wasm  the engine for the AudioWorklet (plain C-ABI exports)
+  bm-worker-wasm  decoding, analysis and exports for the Web Workers
+  bm-export       USB export: the rekordbox device library (export.pdb, ANLZ files)
 third_party/
-  rekordcrate     Pioneer device-export reader/writer (MPL-2.0), vendored; see PATCHES.md
+  rekordcrate     Pioneer device-library reader/writer, vendored (see its PATCHES.md)
+desktop/
+  main.mjs        the Electron app: serves web/dist, grants device permissions
 web/
   public/worklet.js   runs engine.wasm on the audio thread
-  src/audio           the engine's main-thread side, recorder
+  src/audio           the engine's main-thread side, the recorder
   src/workers         decoder/analyser worker pool
   src/state           decks, mixer, library (IndexedDB), settings
-  src/ui              Solid components; waveforms and meters are canvases drawn every frame
+  src/ui              Solid components; waveforms and meters are canvases
   src/midi            Web MIDI and WebHID, MIDI learn
-  src/midi/mixxx      runs Mixxx controller mappings: their XML, their scripts, Mixxx's controls
-  src/export          USB export: copying, the Engine DJ database (SQLite via sql.js)
+  src/midi/mixxx      runs Mixxx controller mappings: their XML, scripts and controls
+  src/export          USB export: copying, the Engine DJ database (SQLite)
 ```
-The engine runs in Rust on the browser's audio thread. The interface sends it parameter changes and reads its state (positions, meters) from shared memory every frame. Decoding and analysis run in a pool of workers; one is kept free so loading a deck never waits behind library analysis.
 
-## Controller mappings from Mixxx
-The [Mixxx](https://mixxx.org) project keeps open mappings for hundreds of controllers: an XML file of MIDI messages and a script for jogs, LEDs and shift layers. bangermix fetches a controller's files from Mixxx's GitHub repository, at release 2.5.6, the first time it is used, and caches them, so it then works offline. They are GPL-2.0-or-later and are not copied into this repository. The scripts run in a hidden iframe with the same `engine`, `midi` and `controller` objects Mixxx gives them, and Mixxx's controls (`[Channel1] play`, `[Master] crossfader`, …) map onto this app's decks, mixer, beat FX and browser. Controls with no counterpart here (samplers, stems, a second effect at once) are accepted and do nothing.
+**Controller mappings.** Mixxx keeps open mappings for hundreds of controllers: an XML file of MIDI messages and a script for jogs, LEDs and shift layers. The first time a controller is used, BangerMix fetches its files from Mixxx's GitHub repository (release 2.5.6) and caches them, so it then works offline. The scripts run in a hidden iframe with the same `engine`, `midi` and `controller` objects Mixxx gives them. Mixxx's controls (`[Channel1] play`, `[Master] crossfader`, …) map onto BangerMix's decks, mixer, effects and browser. Controls with no counterpart here, such as samplers and stems, are accepted and do nothing.
 
-## USB export formats
-- **Pioneer (rekordbox device library).** `export.pdb` is written by [rekordcrate](https://github.com/Holzhaus/rekordcrate) (MPL-2.0), vendored in `third_party/` with one addition so it can write in memory; it follows rekordbox's table layout, including quirks players depend on. The analysis files (`ANLZ0000.DAT`, `.EXT`, `.2EX`) are written by `crates/bm-export`, section for section as rekordbox writes them, from [Deep Symmetry's format analysis](https://djl-analysis.deepsymmetry.org/rekordbox-export-analysis/anlz.html), and placed where players look for them (the folder some players compute from the audio path). Phrase analysis is not written.
-- **Denon (Engine DJ library).** Schema 3.0.0, built in the browser with SQLite. The schema (`web/src/export/engine-schema-3.0.0.sql`) is taken from [libdjinterop](https://github.com/xsco/libdjinterop) and stays under its LGPL-3.0 licence; the row values and blob encodings follow libdjinterop, which Mixxx uses for its Engine exports.
+**USB formats.**
+- **Pioneer:** `export.pdb` is written by rekordcrate, following rekordbox's table layout. The analysis files (`ANLZ0000.DAT`, `.EXT`, `.2EX`) are written section by section as rekordbox writes them, from [Deep Symmetry's format analysis](https://djl-analysis.deepsymmetry.org/rekordbox-export-analysis/anlz.html). Phrase analysis isn't written yet.
+- **Denon:** Engine DJ schema 3.0.0 is built in the browser with SQLite. The row values and blob encodings follow libdjinterop, the library Mixxx uses for its own Engine exports.
 
-## Deploying
-Cloudflare Pages serves `web/dist` with the headers in `web/public/_headers`. Without them the browser withholds shared memory and the meters update less often. The CI workflow deploys `main` when the repository has the secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Then add `bangermix.horly.dev` as a custom domain of the `bangermix` Pages project.
+## Credits and licences
+- [Mixxx](https://mixxx.org): the controller mappings (GPL-2.0-or-later). They are downloaded when a controller is used and aren't part of this repository.
+- [rekordcrate](https://github.com/Holzhaus/rekordcrate): the `export.pdb` writer (MPL-2.0), vendored in `third_party/` with one small addition described in its `PATCHES.md`.
+- [libdjinterop](https://github.com/xsco/libdjinterop): the Engine DJ schema in `web/src/export/engine-schema-3.0.0.sql` (LGPL-3.0).
+- [Deep Symmetry](https://djl-analysis.deepsymmetry.org): the documentation of rekordbox's analysis files.
+- [Symphonia](https://github.com/pdeljanov/Symphonia) for decoding, [Solid](https://www.solidjs.com) for the interface, [sql.js](https://github.com/sql-js/sql.js) for SQLite, [Electron](https://www.electronjs.org) for the desktop app.

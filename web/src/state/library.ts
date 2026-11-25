@@ -7,6 +7,7 @@
 import { createSignal } from "solid-js";
 import * as db from "../lib/db";
 import { parseKey } from "../lib/keys";
+import { desktop } from "../lib/platform";
 import {
   ANALYSIS_VERSION,
   AUDIO_EXTENSIONS,
@@ -142,7 +143,9 @@ export async function reconnect(folder: FolderRec) {
   if (state === "granted") void scanFolder(folder);
   else if (state === "denied") {
     notify(
-      `Chrome is blocking access to "${folder.name}". Allow it in the site settings (the icon left of the address), or remove the folder (✕) and add it again.`,
+      desktop
+        ? `Access to "${folder.name}" was refused. Remove the folder (✕) and add it again.`
+        : `Chrome is blocking access to "${folder.name}". Allow it in the site settings (the icon left of the address), or remove the folder (✕) and add it again.`,
     );
   }
 }

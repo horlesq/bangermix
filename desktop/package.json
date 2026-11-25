@@ -1,0 +1,89 @@
+{
+  "name": "bangermix-desktop",
+  "productName": "BangerMix",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BangerMix, the DJ app, on the desktop",
+  "author": "horlesq",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "main.mjs",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "dist": "electron-builder",
+    "dist:dir": "electron-builder --dir"
+  },
+  "devDependencies": {
+    "electron": "^45.5.0",
+    "electron-builder": "^26.18.0"
+  },
+  "homepage": "https://bangermix.horly.dev",
+  "build": {
+    "appId": "dev.horly.bangermix",
+    "productName": "BangerMix",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.mjs",
+      "package.json",
+      "build/icon.png"
+    ],
+    "extraResources": [
+      {
+        "from": "../web/dist",
+        "to": "web",
+        "filter": [
+          "**/*",
+          "!_headers",
+          "!sw.js",
+          "!manifest.webmanifest"
+        ]
+      }
+    ],
+    "artifactName": "BangerMix-${version}-${os}-${arch}.${ext}",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "BangerMix-Setup-${version}.${ext}",
+      "shortcutName": "BangerMix"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.music"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Audio",
+      "executableName": "bangermix"
+    }
+  }
+}
