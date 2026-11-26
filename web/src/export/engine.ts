@@ -7,7 +7,8 @@
 // (engine-schema-3.0.0.sql, from libdjinterop), the row values it writes for a new
 // track, and the encoding of each performance-data blob (src/djinterop/engine/v2/*_blob.cpp).
 
-import type { Database, SqlJsStatic } from "sql.js";
+import type { Database } from "sql.js";
+import { sqlite } from "../lib/sqlite";
 import { type Bands, Columns, evenly } from "./bands";
 import type { ExportLibrary, ExportTrack } from "./model";
 export { ENGINE_DB_PATH } from "./model";
@@ -15,15 +16,6 @@ import schemaSql from "./engine-schema-3.0.0.sql?raw";
 
 const SCHEMA = { major: 3, minor: 0, patch: 0 };
 
-let sqlJs: Promise<SqlJsStatic> | null = null;
-
-/** sql.js (SQLite in WebAssembly), loaded the first time an Engine export runs. */
-function sqlite(): Promise<SqlJsStatic> {
-  sqlJs ??= Promise.all([import("sql.js"), import("sql.js/dist/sql-wasm.wasm?url")]).then(([m, wasm]) =>
-    m.default({ locateFile: () => wasm.default }),
-  );
-  return sqlJs;
-}
 
 // --- Blobs ----------------------------------------------------------------------------
 

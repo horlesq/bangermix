@@ -5,8 +5,8 @@ import { midiDevices, midiState } from "../midi/midi";
 import { audioError, audioReady, audioRunning, maybeEngine } from "../state/app";
 import { masterDeck } from "../state/deck";
 import { settings, setSettings } from "../state/settings";
-import { FxPanel } from "./FxPanel";
 import { IconGear, IconHelp, IconRecord } from "./icons";
+import { BeatFxSection } from "./FxPanel";
 
 export function TopBar(p: { openSettings: () => void; openHelp: () => void }) {
   const [rec, setRec] = createSignal<Recording | null>(null);
@@ -42,7 +42,7 @@ export function TopBar(p: { openSettings: () => void; openHelp: () => void }) {
         <span class="section-label">MASTER</span>
         <span class="value">{masterDeck()?.currentBpm() ? masterDeck()!.currentBpm().toFixed(2) : "---.--"}</span>
       </div>
-      <FxPanel />
+      <BeatFxSection />
       <div class="topbar-right">
         <Show when={audioError()}>
           <span class="pill warn" title={audioError()!}>

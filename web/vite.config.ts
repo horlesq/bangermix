@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import solid from "vite-plugin-solid";
 
@@ -14,4 +15,5 @@ export default defineConfig({
   preview: { headers },
   worker: { format: "es" },
   build: { target: "es2022" },
+  test: { environment: "jsdom", include: ["src/**/*.test.ts"] },
 });

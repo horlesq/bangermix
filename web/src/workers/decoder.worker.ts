@@ -19,6 +19,8 @@ interface Exports {
   wk_bytes_len(): number;
   wk_export_pioneer_db(): number;
   wk_export_pioneer_track(columnsPerS: number): number;
+  wk_read_pioneer_db(): number;
+  wk_read_pioneer_analysis(): number;
 }
 
 const ready: Promise<Exports> = WebAssembly.instantiateStreaming(fetch("/wasm/worker.wasm"), {}).then(
@@ -68,6 +70,13 @@ function run(w: Exports, req: JobRequest): { result: JobResult; transfer: Transf
     if (!ok) throw new Error(json(w).error);
     const files = unbundle(new Uint8Array(w.memory.buffer, w.wk_bytes(), w.wk_bytes_len()));
     return { result: { files }, transfer: files.map((f) => f.data.buffer) };
+  }
+  if (req.op === "pioneerRead" || req.op === "pioneerReadAnalysis") {
+    write(w, data, "");
+    const ok = (req.op === "pioneerRead" ? w.wk_read_pioneer_db() : w.wk_read_pioneer_analysis()) === 0;
+    const j = json(w);
+    if (!ok) throw new Error(j.error);
+    return { result: { json: j }, transfer: [] };
   }
   const extLen = write(w, data, req.ext);
   if (req.op === "probe") {

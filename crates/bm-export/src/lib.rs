@@ -12,6 +12,7 @@
 pub mod anlz;
 pub mod model;
 pub mod pioneer;
+pub mod read;
 pub mod waveform;
 
 /// Files packed into one buffer, to hand across the WebAssembly boundary: for each file,

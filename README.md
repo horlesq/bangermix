@@ -6,7 +6,8 @@
 
 <p align="center">
   A DJ app that runs in your browser or on your desktop.<br />
-  Two or four decks, synced mixing, controllers, and USB export for CDJs and Denon players.
+  Two or four decks, a club-style mixer with effects, controllers, library import from<br />
+  rekordbox, Serato, Traktor and more, and USB export for CDJs and Denon players.
 </p>
 
 <p align="center">
@@ -22,6 +23,8 @@ Everything runs on your computer: the audio engine, track analysis and your libr
 - [Features](#features)
 - [Getting started](#getting-started)
 - [Using BangerMix](#using-bangermix)
+- [The mixer and its effects](#the-mixer-and-its-effects)
+- [Bringing your library from another app](#bringing-your-library-from-another-app)
 - [Controllers](#controllers)
 - [USB export for CDJs and Denon players](#usb-export-for-cdjs-and-denon-players)
 - [Development](#development)
@@ -32,8 +35,9 @@ Everything runs on your computer: the audio engine, track analysis and your libr
 | | |
 |---|---|
 | **Decks** | 2 or 4 decks, scrolling 3-band waveforms, beat sync, keylock and key shift, loops, beat jump, slip, reverse, 8 hot cues with names and colours |
-| **Mixer** | 3-band EQ, filter, trim, crossfader, beat FX, headphone cue on a second output or a split cable |
-| **Library** | Your music folders, playlists, BPM and key analysis with beat grids, rekordbox XML import, search by title, artist, key or BPM |
+| **Mixer** | Laid out like a Pioneer DJM-900NXS2: trim, 3-band EQ, 6 Sound Color FX, 14 Beat FX, crossfader, headphone cue on a second output or a split cable |
+| **Library** | Your music folders, playlists, BPM and key analysis with beat grids, search by title, artist, key or BPM |
+| **Import** | Grids, cues, loops, keys, ratings and playlists from rekordbox (XML or a USB stick), Serato DJ, Traktor, Engine DJ, Mixxx and VirtualDJ |
 | **Controllers** | About 50 Pioneer, Traktor, Numark and Denon controllers through the Mixxx project's mappings, plus MIDI learn for anything else |
 | **USB export** | A stick that CDJ/XDJ and Denon players read like rekordbox's own: grids, cues, loops and waveforms |
 | **Everywhere** | Works offline once loaded; a desktop app for Windows, macOS and Linux; mouse and keyboard play without any controller |
@@ -59,7 +63,6 @@ Then:
   - drag tracks onto its name; Ctrl-click, Shift-click or `Ctrl A` selects several;
   - right-click a track → *Add to…*;
   - drag a whole folder from the sidebar onto it.
-- **rekordbox import:** in rekordbox, File → Export Collection in xml format. Add the same music folders here, then Settings → Library → Import. Grids, keys, cues, loops, ratings and playlists come across.
 
 ### Playing
 - **Pads** have three modes: HOT CUE, BEAT LOOP and BEAT JUMP.
@@ -80,6 +83,41 @@ Press `F1` in the app for the full list.
 | Hot cues | `1`–`4` | `7`–`0` |
 
 `↑` `↓` move through the track list, and `Ctrl F` searches. In the desktop app, `F11` toggles full screen and `Ctrl +` / `Ctrl −` / `Ctrl 0` zoom the interface.
+
+## The mixer and its effects
+![The mixer](docs/images/mixer.png)
+
+The mixer follows the Pioneer DJM-900NXS2 found in most clubs, so what you learn here carries over to the real one.
+
+**Sound Color FX.** Pick one of the six buttons along the bottom. Each channel's FX knob then applies it to that channel: off in the centre, a different flavour either side. PARAMETER adjusts it.
+
+| Effect | Left | Right | PARAMETER |
+|---|---|---|---|
+| **SPACE** | Reverb on the lows | Reverb on the highs | Size |
+| **DUB ECHO** | Echo, repeats darkening | Echo, repeats thinning | Feedback |
+| **SWEEP** | Gate: tighter sound | Band-pass sweep | Gate hardness or band width |
+| **NOISE** | White noise, filter closing | White noise, filter opening | Noise colour |
+| **CRUSH** | Bit crusher | Crushed and high-passed | Amount |
+| **FILTER** | Low-pass | High-pass | Resonance |
+
+**Beat FX.** In the top bar. Choose the effect, the length in beats (1/16 to 16, synced to the master tempo), and the channel (1–4 or M for the master). Then set LEVEL/DEPTH and press ON, or hold HOLD. The effects are DELAY, ECHO, PING PONG, SPIRAL, REVERB, TRANS, FILTER, FLANGER, PHASER, PITCH, SLIP ROLL, ROLL, VINYL BRAKE and HELIX. The echoes and the reverb ring out after you switch them off, as they do on the DJM.
+
+## Bringing your library from another app
+![The import dialog](docs/images/import.png)
+
+The import button beside PLAYLISTS (also in Settings → Library) brings another app's work across: grids, cues, saved loops, keys, ratings and playlists. Add your music folders first: tracks are matched to the files already in the library by name and size, and the folders they're in break any ties. Imported playlists appear under the app's name (*Serato / House*), and importing again updates them.
+
+| From | Pick | Comes across |
+|---|---|---|
+| **rekordbox** | `rekordbox.xml` (File → Export Collection in xml format) | Grids, keys, hot and memory cues, loops, ratings, playlists |
+| **USB stick** | The stick, prepared in rekordbox or Engine DJ | The same, and optionally the stick's music itself |
+| **Serato DJ** | The `_Serato_` folder (in Music, or at the top of a drive) | Crates, grids, hot cues with names and colours, saved loops |
+| **Traktor** | `collection.nml` (Documents → Native Instruments → Traktor) | Grids, keys, cues, loops, ratings, playlists |
+| **Engine DJ** | The `Engine Library` folder (Engine DJ 2 or newer) | Grids, keys, hot cues, main cue, loops, ratings, playlists |
+| **Mixxx** | `mixxxdb.sqlite` | Grids, keys, hot cues, loops, ratings, playlists, crates |
+| **VirtualDJ** | The `VirtualDJ` folder in Documents | BPM, keys, ratings, hot cues, playlists (*My Lists*) |
+
+These readers are tested with files written by the apps where real ones were available: Serato's own tags from Mixxx's test data, and rekordbox's demo stick. VirtualDJ's hot cues and grids haven't been tried on real files yet.
 
 ## Controllers
 Settings → Controllers → *Connect MIDI controllers*. BangerMix recognises a controller by its name and loads its mapping; you can choose another mapping in the same place.
@@ -114,6 +152,7 @@ npm run dev            # builds the WebAssembly, then serves http://localhost:51
 npm run build          # production build in web/dist
 npm run preview        # serves the build
 npm test               # Rust tests (cargo test --workspace)
+npm --prefix web test  # web tests (Vitest): the library importers
 
 npm run desktop        # builds the web app and opens it in the desktop app
 npm run desktop:dist   # packages it: desktop/dist/BangerMix-Setup-<version>.exe on Windows
@@ -130,13 +169,14 @@ The audio engine is written in Rust, compiled to WebAssembly and run on the brow
 ```
 crates/
   bm-dsp          filters, 3-band isolator EQ, DJ filter, limiter, interpolation
-  bm-engine       decks, mixer, sync, loops, slip, scratch, keylock (WSOLA), beat FX;
-                  never allocates while rendering
+  bm-engine       decks, mixer, sync, loops, slip, scratch, keylock (WSOLA), Sound Color
+                  FX and beat FX; never allocates while rendering
   bm-analysis     tempo, beat grid, downbeat, key, loudness, waveform data
   bm-decode       MP3/FLAC/WAV/AIFF/M4A/Ogg and tags, via Symphonia
   bm-engine-wasm  the engine for the AudioWorklet (plain C-ABI exports)
   bm-worker-wasm  decoding, analysis and exports for the Web Workers
-  bm-export       USB export: the rekordbox device library (export.pdb, ANLZ files)
+  bm-export       USB export, and reading USB sticks: the rekordbox device library
+                  (export.pdb, ANLZ files)
 third_party/
   rekordcrate     Pioneer device-library reader/writer, vendored (see its PATCHES.md)
 desktop/
@@ -150,6 +190,7 @@ web/
   src/midi            Web MIDI and WebHID, MIDI learn
   src/midi/mixxx      runs Mixxx controller mappings: their XML, scripts and controls
   src/export          USB export: copying, the Engine DJ database (SQLite)
+  src/import          library import: rekordbox, Serato, Traktor, Engine DJ, Mixxx, VirtualDJ
 ```
 
 **Controller mappings.** Mixxx keeps open mappings for hundreds of controllers: an XML file of MIDI messages and a script for jogs, LEDs and shift layers. The first time a controller is used, BangerMix fetches its files from Mixxx's GitHub repository (release 2.5.6) and caches them, so it then works offline. The scripts run in a hidden iframe with the same `engine`, `midi` and `controller` objects Mixxx gives them. Mixxx's controls (`[Channel1] play`, `[Master] crossfader`, …) map onto BangerMix's decks, mixer, effects and browser. Controls with no counterpart here, such as samplers and stems, are accepted and do nothing.
@@ -163,4 +204,5 @@ web/
 - [rekordcrate](https://github.com/Holzhaus/rekordcrate): the `export.pdb` writer (MPL-2.0), vendored in `third_party/` with one small addition described in its `PATCHES.md`.
 - [libdjinterop](https://github.com/xsco/libdjinterop): the Engine DJ schema in `web/src/export/engine-schema-3.0.0.sql` (LGPL-3.0).
 - [Deep Symmetry](https://djl-analysis.deepsymmetry.org): the documentation of rekordbox's analysis files.
+- [serato-tags](https://github.com/Holzhaus/serato-tags) by Jan Holthuis, and Mixxx's own library readers: the documentation of Serato's database, crates and tags, and of Traktor's and Mixxx's libraries.
 - [Symphonia](https://github.com/pdeljanov/Symphonia) for decoding, [Solid](https://www.solidjs.com) for the interface, [sql.js](https://github.com/sql-js/sql.js) for SQLite, [Electron](https://www.electronjs.org) for the desktop app.

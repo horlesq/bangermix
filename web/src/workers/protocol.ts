@@ -3,8 +3,10 @@
 export interface JobRequest {
   /** decode: stereo audio for a deck (optionally analysed too); analyse: analysis
    * only, from a mono decode; probe: tags only; pioneerTrack / pioneerDb: Pioneer USB
-   * export files, from `bytes` = u32 JSON length, JSON, then a waveform (crates/bm-export). */
-  op: "decode" | "analyse" | "probe" | "pioneerTrack" | "pioneerDb";
+   * export files, from `bytes` = u32 JSON length, JSON, then a waveform (crates/bm-export);
+   * pioneerRead / pioneerReadAnalysis: a rekordbox stick's library or one track's grid and
+   * cues, from `bytes` = a bundle of its files (see `bundle` in ../import/pioneer.ts). */
+  op: "decode" | "analyse" | "probe" | "pioneerTrack" | "pioneerDb" | "pioneerRead" | "pioneerReadAnalysis";
   bytes: ArrayBuffer;
   ext: string;
   analyse?: boolean;
@@ -48,4 +50,6 @@ export interface JobResult {
   tags?: TagsResult;
   /** Export files: path from the device root, and contents. */
   files?: { path: string; data: Uint8Array }[];
+  /** What a read returned. */
+  json?: unknown;
 }

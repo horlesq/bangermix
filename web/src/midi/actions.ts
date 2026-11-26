@@ -4,7 +4,7 @@
 import { moveSelection, selected } from "../state/browser";
 import { decks } from "../state/deck";
 import { trackById } from "../state/library";
-import { mixer, setChannel, setCrossfader, setFx, setMixerValue } from "../state/mixer";
+import { cycleColor, cycleFx, mixer, setChannel, setColor, setCrossfader, setFx, setMixerValue, stepFxBeats } from "../state/mixer";
 import { settings, setSettings } from "../state/settings";
 
 export interface Action {
@@ -50,7 +50,7 @@ function deckActions(i: number): Action[] {
     { id: `deck${n}.high`, label: `Channel ${n} EQ high`, kind: "knob", run: (v) => setChannel(i, "high", v) },
     { id: `deck${n}.mid`, label: `Channel ${n} EQ mid`, kind: "knob", run: (v) => setChannel(i, "mid", v) },
     { id: `deck${n}.low`, label: `Channel ${n} EQ low`, kind: "knob", run: (v) => setChannel(i, "low", v) },
-    { id: `deck${n}.filter`, label: `Channel ${n} filter`, kind: "knob", run: (v) => setChannel(i, "filter", v * 2 - 1) },
+    { id: `deck${n}.filter`, label: `Channel ${n} FX knob`, kind: "knob", run: (v) => setChannel(i, "filter", v * 2 - 1) },
     { id: `deck${n}.fader`, label: `Channel ${n} fader`, kind: "knob", run: (v) => setChannel(i, "fader", v) },
     {
       id: `deck${n}.pfl`,
@@ -80,7 +80,14 @@ export const ACTIONS: Action[] = [
   { id: "phonesMix", label: "Headphones cue/master", kind: "knob", run: (v) => setMixerValue("phonesMix", v) },
   { id: "phonesLevel", label: "Headphones level", kind: "knob", run: (v) => setMixerValue("phonesLevel", v) },
   { id: "fx.on", label: "Beat FX on/off", kind: "button", run: press(() => setFx("on", !mixer.fx.on)) },
-  { id: "fx.level", label: "Beat FX level", kind: "knob", run: (v) => setFx("wet", v) },
+  { id: "fx.level", label: "Beat FX level/depth", kind: "knob", run: (v) => setFx("wet", v) },
+  { id: "fx.param", label: "Beat FX second knob", kind: "knob", run: (v) => setFx("param", v) },
+  { id: "fx.next", label: "Beat FX: next effect", kind: "button", run: press(() => cycleFx(1)) },
+  { id: "fx.prev", label: "Beat FX: previous effect", kind: "button", run: press(() => cycleFx(-1)) },
+  { id: "fx.longer", label: "Beat FX: more beats", kind: "button", run: press(() => stepFxBeats(1)) },
+  { id: "fx.shorter", label: "Beat FX: fewer beats", kind: "button", run: press(() => stepFxBeats(-1)) },
+  { id: "color.next", label: "Sound Color FX: next", kind: "button", run: press(() => cycleColor(1)) },
+  { id: "color.param", label: "Sound Color FX parameter", kind: "knob", run: (v) => setColor("param", v) },
   { id: "browse.up", label: "Browse up", kind: "button", run: press(() => moveSelection(-1)) },
   { id: "browse.down", label: "Browse down", kind: "button", run: press(() => moveSelection(1)) },
   {

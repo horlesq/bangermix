@@ -9,6 +9,9 @@ Changes from upstream:
 
 - `src/device/export.rs`: added `DeviceExport::save_to_memory`, which returns the files
   `save` would write instead of writing them, for WebAssembly in a browser.
+- `src/device/export.rs`: added `DeviceExport::open_from_memory` (open an export from the
+  bytes of its databases) and `DeviceExport::analysis_paths` (each track's stored analysis
+  file path), for importing a USB stick in a browser.
 - Left out: the command-line tool (`src/main.rs`), the test suites that need the upstream
   test data (`src/pdb/test_roundtrip.rs`, `src/pdb/test_modification.rs`, `tests/`,
   `data/`) and the build script that generates tests from that data. `Cargo.toml` is

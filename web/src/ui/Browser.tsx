@@ -46,7 +46,8 @@ import {
 import { settings } from "../state/settings";
 import { FOLDER_MIME, TRACK_MIME } from "./dnd";
 import { deckColor } from "./theme";
-import { IconClose, IconCollection, IconFolder, IconPlaylist, IconPlus, IconRefresh, IconSearch, IconUnlink, IconUsb, IconWarn } from "./icons";
+import { IconClose, IconCollection, IconFolder, IconImport, IconPlaylist, IconPlus, IconRefresh, IconSearch, IconUnlink, IconUsb, IconWarn } from "./icons";
+import { setImportOpen } from "./LibraryImport";
 import { setUsbOpen } from "./UsbExport";
 import { formatTime } from "./wave";
 
@@ -201,6 +202,9 @@ function Sidebar() {
 
       <div class="side-head">
         <span>PLAYLISTS</span>
+        <button class="icon mini" onClick={() => setImportOpen(true)} title="Import from rekordbox, Serato, Traktor, Engine DJ, Mixxx, VirtualDJ or a USB stick">
+          <IconImport size={12} />
+        </button>
         <button class="icon mini" onClick={() => setUsbOpen(true)} title="Export to a USB stick for CDJs and Denon players">
           <IconUsb size={12} />
         </button>
@@ -608,6 +612,13 @@ function EmptyLibrary() {
         <p>Add your music folder, or drop files and folders on this window.</p>
         <button onClick={() => addFolder().catch(() => {})}>ADD MUSIC FOLDER</button>
       </Show>
+      <p>
+        Coming from another DJ app?{" "}
+        <button class="link" onClick={() => setImportOpen(true)}>
+          Import its library
+        </button>{" "}
+        after adding your music: grids, cues and playlists come across.
+      </p>
       <p class="hint">MP3 · FLAC · WAV · AIFF · M4A · OGG — files stay on this computer.</p>
     </div>
   );

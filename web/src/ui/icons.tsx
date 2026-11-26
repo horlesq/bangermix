@@ -131,6 +131,11 @@ export const IconUnlink = (p: { size?: number }) => (
     <path d="M6.5 9.5l-2 2a2.1 2.1 0 0 1-3-3l2-2M9.5 6.5l2-2a2.1 2.1 0 0 1 3 3l-2 2M3 3l10 10" />
   </Svg>
 );
+export const IconImport = (p: { size?: number }) => (
+  <Svg size={p.size}>
+    <path d="M8 1.5v8M4.8 6.5 8 9.7l3.2-3.2M2.5 10.5v3h11v-3" />
+  </Svg>
+);
 export const IconUsb = (p: { size?: number }) => (
   <Svg size={p.size}>
     <path d="M6 1.5h4v4H6zM4.5 5.5h7v6a3.5 3.5 0 0 1-7 0z" />

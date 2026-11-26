@@ -258,7 +258,7 @@ input[type="number"] {
   border-bottom: 1px solid #000;
 }
 
-/* ---------- Beat FX ---------- */
+/* ---------- Beat FX (top bar) and Sound Color FX (mixer) ---------- */
 
 .fx {
   display: flex;
@@ -267,7 +267,7 @@ input[type="number"] {
   padding: 0 10px;
   border-left: 1px solid var(--line);
   border-right: 1px solid var(--line);
-  height: 100%;
+  height: 36px;
 }
 
 .fx .knob-label {
@@ -275,7 +275,7 @@ input[type="number"] {
 }
 
 .fx-select {
-  width: 84px;
+  width: 96px;
 }
 
 .fx-beats {
@@ -307,6 +307,42 @@ input[type="number"] {
 .fx-on,
 .fx-hold {
   --lit: var(--cue);
+}
+
+.color-fx {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: stretch;
+  padding: 5px 2px 2px;
+  border-top: 1px solid #242424;
+}
+
+.color-fx-buttons {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+}
+
+.color-fx-buttons button {
+  height: 19px;
+  padding: 0 2px;
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.color-fx-buttons button.on {
+  background: color-mix(in srgb, var(--lit) 30%, #1a1a1a);
+  border-color: var(--lit);
+  color: #fff;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--lit) 40%, transparent);
+}
+
+.color-fx .knob-label {
+  font-size: 7px;
 }
 
 /* ---------- Waveforms ---------- */
@@ -1842,6 +1878,7 @@ kbd {
     padding: 0 6px;
     gap: 4px;
   }
+
 }
 
 /* Groups that wrap as one. */
@@ -1879,11 +1916,6 @@ kbd {
   min-height: 36px;
 }
 
-/* A fixed height: "100%" of a bar that wraps would be circular. */
-.topbar .fx {
-  height: 36px;
-}
-
 /* Never squeeze the library away: below this the whole window scrolls instead. */
 .app {
   overflow-y: auto;
@@ -1891,4 +1923,63 @@ kbd {
 
 .browser {
   min-height: 260px;
+}
+
+/* ---------- Library import ---------- */
+
+.import-sources {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  background: var(--well);
+}
+
+.import-source {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+}
+
+.import-source:first-child {
+  border-top: 0;
+}
+
+.import-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.import-text b {
+  color: var(--text);
+}
+
+.import-text .where {
+  color: var(--dim);
+  font-size: 11px;
+}
+
+.import-text .where.warn {
+  color: var(--cue);
+}
+
+.import-source button {
+  flex: none;
+  min-width: 190px;
+}
+
+button.link {
+  display: inline;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--sync);
+  text-decoration: underline;
+  font: inherit;
+  cursor: pointer;
 }

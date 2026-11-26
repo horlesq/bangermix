@@ -1,5 +1,6 @@
 import { Show, createEffect, createSignal, on, onMount } from "solid-js";
 import { initHid } from "./midi/hid";
+import { LibraryImport, importOpen, setImportOpen } from "./ui/LibraryImport";
 import { UsbExport, setUsbOpen, usbOpen } from "./ui/UsbExport";
 import { enableMidi } from "./midi/midi";
 import { P } from "./audio/params";
@@ -103,6 +104,9 @@ export function App() {
       <Browser />
       <Show when={toast()}>
         <div class="toast">{toast()}</div>
+      </Show>
+      <Show when={importOpen()}>
+        <LibraryImport close={() => setImportOpen(false)} />
       </Show>
       <Show when={usbOpen()}>
         <UsbExport close={() => setUsbOpen(false)} />

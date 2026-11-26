@@ -1,11 +1,13 @@
-// The mixer: channel strips (trim, 3-band EQ, colour filter, headphone cue, fader,
-// meter, crossfader assign), the crossfader, master and headphones.
+// The mixer, laid out like a Pioneer DJM-900NXS2: channel strips (trim, 3-band EQ,
+// COLOR, headphone cue, fader, meter, crossfader assign), master and headphones, and the
+// Sound Color FX buttons and the crossfader below. The Beat FX unit is in the top bar.
 
 import { For, onCleanup, onMount } from "solid-js";
 import { S, SG } from "../audio/params";
 import { maybeEngine } from "../state/app";
 import { type XfAssign, mixer, setChannel, setCrossfader, setMixerValue } from "../state/mixer";
 import { Fader, Knob, meterSegments } from "./controls";
+import { ColorFxSection, colorFx } from "./FxPanel";
 import { onFrame } from "./frame";
 import { IconHeadphones } from "./icons";
 import { deckColor } from "./theme";
@@ -19,6 +21,7 @@ export function MixerPanel(p: { channels: number[]; compact?: boolean }) {
         <For each={p.channels}>{(k) => <Strip k={k} compact={p.compact} />}</For>
         <Master />
       </div>
+      <ColorFxSection />
       <div class="crossfader-row">
         <span>A</span>
         <Fader value={mixer.crossfader} reset={0.5} length={200} onChange={setCrossfader} class="crossfader" title="Crossfader (double-click centres)">
@@ -42,13 +45,14 @@ function Strip(p: { k: number; compact?: boolean }) {
         <Knob label="LOW" value={c().low} reset={0.5} onChange={(v) => setChannel(p.k, "low", v)} />
       </div>
       <Knob
-        label="CFX"
+        label="FX"
         value={c().filter}
         min={-1}
         max={1}
         reset={0}
+        color={colorFx().color}
         onChange={(v) => setChannel(p.k, "filter", v)}
-        title="Colour filter: left low-pass, right high-pass"
+        title={`FX knob, playing ${colorFx().name}: ${colorFx().help}. Pick the effect below.`}
       />
       <button class="cue-ch" classList={{ on: c().cue }} onClick={() => setChannel(p.k, "cue", !c().cue)} title="Headphone cue">
         <IconHeadphones size={13} />

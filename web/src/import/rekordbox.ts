@@ -2,41 +2,9 @@
 // format). The format is documented by AlphaTheta as "rekordbox.xml": a COLLECTION
 // of TRACKs (with TEMPO and POSITION_MARK children) and a PLAYLISTS tree of NODEs.
 
-import { parseKey } from "./keys";
-import type { Cue, MusicalKey } from "./types";
-
-export interface XmlTrack {
-  id: string;
-  /** The file name, from the Location URL. */
-  fileName: string;
-  location: string;
-  size: number;
-  title: string;
-  artist: string;
-  album: string;
-  genre: string;
-  comment: string;
-  rating: number;
-  playCount: number;
-  duration?: number;
-  bpm?: number;
-  /** A downbeat, in seconds. */
-  anchor?: number;
-  key?: MusicalKey;
-  hotCues: (Cue | null)[];
-  memoryCues: Cue[];
-}
-
-export interface XmlPlaylist {
-  /** Folder path and name, e.g. "Sets / Friday". */
-  name: string;
-  trackIds: string[];
-}
-
-export interface XmlLibrary {
-  tracks: XmlTrack[];
-  playlists: XmlPlaylist[];
-}
+import { parseKey } from "../lib/keys";
+import type { Cue } from "../lib/types";
+import { baseName, type ImportedLibrary, type ImportedPlaylist, type ImportedTrack, noHotCues } from "./model";
 
 const num = (el: Element, attr: string): number | undefined => {
   const v = el.getAttribute(attr);
@@ -53,12 +21,12 @@ function color(el: Element, fallback: string): string {
   return `#${[r, g, b].map((x) => Math.max(0, Math.min(255, x)).toString(16).padStart(2, "0")).join("")}`;
 }
 
-export function parseRekordboxXml(text: string, palette: string[]): XmlLibrary {
+export function parseRekordboxXml(text: string, palette: string[]): ImportedLibrary {
   const doc = new DOMParser().parseFromString(text, "application/xml");
   if (doc.querySelector("parsererror") || !doc.querySelector("DJ_PLAYLISTS")) {
     throw new Error("This is not a rekordbox collection (rekordbox.xml).");
   }
-  const tracks: XmlTrack[] = [];
+  const tracks: ImportedTrack[] = [];
   for (const el of Array.from(doc.querySelectorAll("COLLECTION > TRACK"))) {
     const location = el.getAttribute("Location") ?? "";
     let path = location;
@@ -67,12 +35,12 @@ export function parseRekordboxXml(text: string, palette: string[]): XmlLibrary {
     } catch {
       /* keep it as it is */
     }
-    const fileName = path.split(/[\\/]/).pop() ?? "";
-    const t: XmlTrack = {
+    const fileName = baseName(path);
+    const t: ImportedTrack & { hotCues: (Cue | null)[]; memoryCues: Cue[] } = {
       id: el.getAttribute("TrackID") ?? "",
       fileName,
       location: path,
-      size: num(el, "Size") ?? 0,
+      size: num(el, "Size"),
       title: el.getAttribute("Name") ?? "",
       artist: el.getAttribute("Artist") ?? "",
       album: el.getAttribute("Album") ?? "",
@@ -80,9 +48,8 @@ export function parseRekordboxXml(text: string, palette: string[]): XmlLibrary {
       comment: el.getAttribute("Comments") ?? "",
       rating: Math.round((num(el, "Rating") ?? 0) / 51),
       playCount: num(el, "PlayCount") ?? 0,
-      duration: num(el, "TotalTime"),
       key: parseKey(el.getAttribute("Tonality") ?? undefined),
-      hotCues: Array(8).fill(null),
+      hotCues: noHotCues(),
       memoryCues: [],
     };
     // The first tempo marker sets the grid; Battito is its beat in the bar (1-4).
@@ -116,7 +83,7 @@ export function parseRekordboxXml(text: string, palette: string[]): XmlLibrary {
     tracks.push(t);
   }
 
-  const playlists: XmlPlaylist[] = [];
+  const playlists: ImportedPlaylist[] = [];
   const walk = (node: Element, path: string[]) => {
     for (const child of Array.from(node.children)) {
       if (child.tagName !== "NODE") continue;
@@ -133,5 +100,5 @@ export function parseRekordboxXml(text: string, palette: string[]): XmlLibrary {
   };
   const root = doc.querySelector("PLAYLISTS > NODE");
   if (root) walk(root, []);
-  return { tracks, playlists };
+  return { source: "rekordbox", tracks, playlists };
 }

@@ -1,8 +1,9 @@
 //! A deck and its mixer channel.
 
+use crate::color::ColorFx;
 use crate::param::*;
 use crate::stretch::Stretcher;
-use bm_dsp::{sample_at, DjFilter, Isolator, Smoothed};
+use bm_dsp::{sample_at, Isolator, Smoothed};
 
 /// Jumps (seeks, loop wraps) crossfade from the old place to the new over this long.
 const JUMP_FADE_S: f64 = 0.003;
@@ -126,8 +127,8 @@ pub struct Deck {
     trim: Smoothed,
     eq: [Smoothed; 3],
     volume: Smoothed,
-    filter_pos: f32,
-    filter: DjFilter,
+    /// The channel's Sound Color FX (its COLOR knob is [`FILTER`]).
+    pub color: ColorFx,
     iso: [Isolator; 2],
     pub cue: bool,
     pub peak: [f32; 2],
@@ -185,8 +186,7 @@ impl Deck {
             trim: smoothed(1.0),
             eq: [smoothed(1.0), smoothed(1.0), smoothed(1.0)],
             volume: smoothed(1.0),
-            filter_pos: 0.0,
-            filter: DjFilter::new(out_rate),
+            color: ColorFx::new(out_rate),
             iso: [Isolator::new(out_rate), Isolator::new(out_rate)],
             cue: false,
             peak: [0.0; 2],
@@ -297,7 +297,7 @@ impl Deck {
             EQ_LOW => self.eq[0].target = value as f32,
             EQ_MID => self.eq[1].target = value as f32,
             EQ_HIGH => self.eq[2].target = value as f32,
-            FILTER => self.filter_pos = value as f32,
+            FILTER => self.color.set_knob(value as f32),
             VOLUME => self.volume.target = value as f32,
             CUE => self.cue = on,
             ALIGN => self.align = self.bar_unit(),
@@ -347,6 +347,7 @@ impl Deck {
 
     /// Works out this block's speed: tempo, sync, bend, scratch.
     pub fn begin_block(&mut self, clock: &MasterClock, block_s: f64) {
+        self.color.begin_block(clock.bpm);
         let Some(rate) = self.track.as_ref().map(|t| t.rate) else {
             self.step = 0.0;
             return;
@@ -431,7 +432,6 @@ impl Deck {
         } else {
             0.0
         };
-        self.filter.set(self.filter_pos);
     }
 
     /// The next output frame, or `None` while the deck is silent.
@@ -507,12 +507,11 @@ impl Deck {
         }
 
         let g = self.play_gain;
-        l = self.filter.process(0, l * g);
-        r = self.filter.process(1, r * g);
         let eq = [self.eq[0].tick(), self.eq[1].tick(), self.eq[2].tick()];
         let trim = self.trim.tick();
-        l = self.iso[0].process(l, eq) * trim;
-        r = self.iso[1].process(r, eq) * trim;
+        l = self.iso[0].process(l * g, eq) * trim;
+        r = self.iso[1].process(r * g, eq) * trim;
+        (l, r) = self.color.process(l, r);
         self.peak[0] = self.peak[0].max(l.abs());
         self.peak[1] = self.peak[1].max(r.abs());
         let v = self.volume.tick();

@@ -8,11 +8,13 @@ pub mod biquad;
 mod filter;
 mod isolator;
 mod limiter;
+mod svf;
 
 pub use biquad::{Biquad, BUTTERWORTH_Q};
 pub use filter::DjFilter;
 pub use isolator::{Isolator, CROSSOVER_HZ, HIGH_CROSSOVER_HZ};
 pub use limiter::Limiter;
+pub use svf::{Svf, SvfOut};
 
 /// The sample at fractional index `pos`, by cubic (Catmull-Rom) interpolation.
 /// Outside the buffer is silence.

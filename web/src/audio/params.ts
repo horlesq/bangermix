@@ -42,9 +42,31 @@ export const G = {
   FX_WET: 6,
   FX_ON: 7,
   FX_PARAM: 8,
+  COLOR_TYPE: 9,
+  COLOR_PARAM: 10,
 } as const;
 
-export const FX = { OFF: 0, ECHO: 1, REVERB: 2, FLANGER: 3, ROLL: 4 } as const;
+/** Beat FX (crates/bm-engine/src/fx.rs). */
+export const FX = {
+  OFF: 0,
+  ECHO: 1,
+  REVERB: 2,
+  FLANGER: 3,
+  ROLL: 4,
+  DELAY: 5,
+  PING_PONG: 6,
+  SPIRAL: 7,
+  TRANS: 8,
+  FILTER: 9,
+  PHASER: 10,
+  PITCH: 11,
+  SLIP_ROLL: 12,
+  VINYL_BRAKE: 13,
+  HELIX: 14,
+} as const;
+
+/** Sound Color FX (crates/bm-engine/src/color.rs). */
+export const COLOR = { FILTER: 0, SPACE: 1, DUB_ECHO: 2, SWEEP: 3, NOISE: 4, CRUSH: 5 } as const;
 export const FX_TARGET_MASTER = 4;
 
 export const MAX_DECKS = 4;

@@ -15,7 +15,8 @@ import {
 } from "../midi/midi";
 import { BRANDS, CATALOG, MIXXX_RELEASE } from "../midi/mixxx/catalog";
 import { maybeEngine } from "../state/app";
-import { type ImportReport, importRekordbox, reanalyse, tracks } from "../state/library";
+import { reanalyse, tracks } from "../state/library";
+import { setImportOpen } from "./LibraryImport";
 import { applyAll } from "../state/mixer";
 import { type CrossfaderCurve, settings, setSettings } from "../state/settings";
 
@@ -215,60 +216,18 @@ function DeckSettings() {
 }
 
 function LibrarySettings() {
-  const [report, setReport] = createSignal<ImportReport | null>(null);
-  const [error, setError] = createSignal("");
-  const [busy, setBusy] = createSignal(false);
-  let input!: HTMLInputElement;
-  const importFile = async (file: File) => {
-    setBusy(true);
-    setError("");
-    setReport(null);
-    try {
-      setReport(await importRekordbox(await file.text()));
-    } catch (e) {
-      setError(String((e as Error).message ?? e));
-    } finally {
-      setBusy(false);
-    }
-  };
   return (
     <div class="form">
       <div class="field">
-        <span>rekordbox</span>
+        <span>Import</span>
         <div>
-          <button disabled={busy()} onClick={() => input.click()}>
-            {busy() ? "IMPORTING…" : "IMPORT REKORDBOX.XML"}
-          </button>
-          <input
-            ref={input}
-            type="file"
-            accept=".xml"
-            style={{ display: "none" }}
-            onChange={(e) => {
-              const f = e.currentTarget.files?.[0];
-              if (f) void importFile(f);
-              e.currentTarget.value = "";
-            }}
-          />
+          <button onClick={() => setImportOpen(true)}>IMPORT FROM ANOTHER DJ APP…</button>
         </div>
       </div>
       <p class="note">
-        In rekordbox: File → Export Collection in xml format. Beat grids, keys, hot cues, memory cues, loops, ratings and
-        playlists come across. Add the music folders here first: tracks are matched by file name and size.
+        rekordbox (collection XML or a USB stick), Serato DJ, Traktor, Engine DJ, Mixxx and VirtualDJ: beat grids, keys,
+        cues, loops, ratings and playlists. Add the music folders first: tracks are matched by file name and size.
       </p>
-      <Show when={error()}>
-        <p class="note warn">{error()}</p>
-      </Show>
-      <Show when={report()}>
-        <p class="note">
-          Matched {report()!.matched} of {report()!.inXml} tracks, {report()!.playlists} playlists.
-          <Show when={report()!.missingCount > 0}>
-            {" "}
-            Not in the library ({report()!.missingCount}): {report()!.missing.join(", ")}
-            {report()!.missingCount > report()!.missing.length ? "…" : ""}
-          </Show>
-        </p>
-      </Show>
       <hr />
       <label>
         BPM range for analysis

@@ -273,6 +273,31 @@ impl DeviceExport {
         Ok(export)
     }
 
+    /// Open a device export from the bytes of its `export.pdb` (and `exportExt.pdb`, if any),
+    /// for reading where there is no file system (WebAssembly in a browser). The paths it
+    /// reports are relative to an empty device root.
+    pub fn open_from_memory(pdb: Vec<u8>, ext_pdb: Option<Vec<u8>>) -> Result<Self> {
+        let layout = Layout::new(PathBuf::new());
+        let db = Database::open(Cursor::new(pdb), DatabaseType::Plain)?;
+        let ext_db = ext_pdb
+            .map(|bytes| Database::open(Cursor::new(bytes), DatabaseType::Ext))
+            .transpose()?;
+        Self::from_databases(layout, db, ext_db)
+    }
+
+    /// Each track's analysis file (`/PIONEER/USBANLZ/…/ANLZ0000.DAT`) as stored in its row.
+    pub fn analysis_paths(&mut self) -> Result<HashMap<TrackId, String>> {
+        self.db
+            .iter_rows::<PdbTrack>()?
+            .map(|row| {
+                Ok((
+                    row.id,
+                    row.offsets.inner.analyze_path.clone().into_string()?,
+                ))
+            })
+            .collect()
+    }
+
     /// Open an existing device export at the given path, loading its databases into memory.
     ///
     /// Scans the tables for their highest ids, so rows added later get ids that do not conflict,

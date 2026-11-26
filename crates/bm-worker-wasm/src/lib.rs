@@ -13,6 +13,8 @@
 //! 5. for exports, `wk_input` holds a little-endian u32 JSON length, the JSON, then any
 //!    binary data; `wk_export_pioneer_db()` and `wk_export_pioneer_track(columns_per_s)`
 //!    leave a bundle of files (`bm_export::bundle`) at `wk_bytes()`.
+//! 6. for imports, `wk_input` holds a bundle of a USB stick's files;
+//!    `wk_read_pioneer_db()` and `wk_read_pioneer_analysis()` leave JSON.
 //!
 //! Each call returns 0 on success; on failure the JSON is `{"error": ...}`.
 
@@ -228,5 +230,51 @@ pub extern "C" fn wk_export_pioneer_track(columns_per_s: f64) -> i32 {
         state().bytes = bm_export::bundle(&files);
         Ok(json!({ "files": files.len() }))
     });
+    finish(result)
+}
+
+/// Reads a rekordbox USB stick's library: the input is a bundle (`bm_export::bundle`) of
+/// `export.pdb` and, if the stick has one, `exportExt.pdb`. The JSON is
+/// `bm_export::read::StickLibrary`.
+#[no_mangle]
+pub extern "C" fn wk_read_pioneer_db() -> i32 {
+    let s = state();
+    let input = std::mem::take(&mut s.input);
+    s.bytes.clear();
+    let result = (|| {
+        let files = bm_export::unbundle(&input).ok_or("bad input bundle")?;
+        let mut pdb = None;
+        let mut ext = None;
+        for (path, bytes) in files {
+            match path.as_str() {
+                "export.pdb" => pdb = Some(bytes),
+                "exportExt.pdb" => ext = Some(bytes),
+                _ => {}
+            }
+        }
+        let library = bm_export::read::read_device(pdb.ok_or("no export.pdb")?, ext)?;
+        serde_json::to_value(library).map_err(|e| e.to_string())
+    })();
+    finish(result)
+}
+
+/// Reads a track's grid and cues from its analysis files: the input is a bundle of
+/// `DAT` and, if there is one, `EXT`. The JSON is `bm_export::read::StickAnalysis`.
+#[no_mangle]
+pub extern "C" fn wk_read_pioneer_analysis() -> i32 {
+    let s = state();
+    let input = std::mem::take(&mut s.input);
+    s.bytes.clear();
+    let result = (|| {
+        let files = bm_export::unbundle(&input).ok_or("bad input bundle")?;
+        let get = |name: &str| {
+            files
+                .iter()
+                .find(|(p, _)| p == name)
+                .map(|(_, b)| b.as_slice())
+        };
+        let analysis = bm_export::read::read_analysis(get("DAT").ok_or("no DAT file")?, get("EXT"));
+        serde_json::to_value(analysis).map_err(|e| e.to_string())
+    })();
     finish(result)
 }

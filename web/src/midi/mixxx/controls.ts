@@ -10,7 +10,17 @@ import { maybeEngine } from "../../state/app";
 import { moveSelection, selected, setView, view, type View } from "../../state/browser";
 import { type Deck, decks, makeMaster } from "../../state/deck";
 import { folders, playlists, trackById } from "../../state/library";
-import { type Channel, mixer, setChannel, setCrossfader, setFx, setMixerValue } from "../../state/mixer";
+import {
+  BEAT_FX_ORDER,
+  type Channel,
+  cycleColor,
+  FX_BEAT_STEPS,
+  mixer,
+  setChannel,
+  setCrossfader,
+  setFx,
+  setMixerValue,
+} from "../../state/mixer";
 import { settings, setSettings } from "../../state/settings";
 
 export interface Control {
@@ -913,8 +923,8 @@ const volumeTaper = taper(-20, 0, 1, () => 0, () => {});
 
 // --- Effects ----------------------------------------------------------------------
 
-const FX_CYCLE = [FX.ECHO, FX.REVERB, FX.FLANGER, FX.ROLL];
-const FX_BEATS = [0.125, 0.25, 0.5, 0.75, 1, 2, 4];
+const FX_CYCLE = BEAT_FX_ORDER;
+const FX_BEATS = FX_BEAT_STEPS;
 /** The type each slot of each effect unit plays (Mixxx units hold three effects). */
 const slots = [0, 1, 2, 3].map(() => [FX.ECHO, FX.REVERB, FX.FLANGER] as number[]);
 let activeSlot: { u: number; m: number } | null = null;
@@ -935,7 +945,7 @@ function slotEnabled(u: number, m: number): Control {
 }
 
 function cycleSlot(u: number, m: number, dir: number) {
-  const i = FX_CYCLE.indexOf(slots[u][m] as (typeof FX_CYCLE)[number]);
+  const i = FX_CYCLE.indexOf(slots[u][m]);
   slots[u][m] = FX_CYCLE[(i + dir + FX_CYCLE.length) % FX_CYCLE.length];
   if (activeSlot?.u === u && activeSlot.m === m) setFx("type", slots[u][m]);
 }
@@ -1176,6 +1186,14 @@ function resolve(group: string, key: string): Control | null {
       return knob(
         () => (mixer.channels[k].filter + 1) / 2,
         (v) => setChannel(k, "filter", clamp(v * 2 - 1, -1, 1)),
+      );
+    }
+    if (key === "next_chain" || key === "next_chain_preset") return push(() => cycleColor(1));
+    if (key === "prev_chain" || key === "prev_chain_preset") return push(() => cycleColor(-1));
+    if (key === "chain_selector" || key === "chain_preset_selector") {
+      return numeric(
+        () => 0,
+        (v) => v && cycleColor(Math.sign(v)),
       );
     }
     return plain(group, key);

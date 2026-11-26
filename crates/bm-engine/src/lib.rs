@@ -1,4 +1,5 @@
-//! bangermix audio engine: up to four decks, a DJ mixer, sync, loops, slip and beat FX.
+//! bangermix audio engine: up to four decks, a DJ mixer with Sound Color FX, sync,
+//! loops, slip and beat FX.
 //!
 //! The engine is driven by parameters ([`Engine::set`]) and renders blocks
 //! ([`Engine::render`]). Rendering never allocates, frees or locks, so a platform
@@ -9,6 +10,7 @@
 //! Each block it writes a snapshot of the decks and meters into [`Engine::state`],
 //! which the interface reads to draw.
 
+pub mod color;
 mod deck;
 pub mod fx;
 pub mod param;
@@ -76,6 +78,14 @@ impl Engine {
                 G_CUE_MIX => self.cue_mix.target = value.clamp(0.0, 1.0) as f32,
                 G_PHONES_GAIN => self.phones_gain.target = value as f32,
                 G_FX_TYPE..=G_FX_PARAM => self.fx.set(param, value),
+                G_COLOR_TYPE => self
+                    .decks
+                    .iter_mut()
+                    .for_each(|d| d.color.set_kind(value as u32)),
+                G_COLOR_PARAM => self
+                    .decks
+                    .iter_mut()
+                    .for_each(|d| d.color.set_param(value as f32)),
                 _ => {}
             }
         } else if let Some(d) = self.decks.get_mut(deck as usize) {
@@ -127,7 +137,8 @@ impl Engine {
         for d in &mut self.decks {
             d.begin_block(&clock, block_s);
         }
-        self.fx.begin_block(clock.bpm);
+        self.fx
+            .begin_block(clock.bpm, clock.playing.then_some(clock.phase));
 
         let fall = METER_FALL_PER_S.powf(block_s as f32);
         for p in self.master_peak.iter_mut().chain(&mut self.phones_peak) {

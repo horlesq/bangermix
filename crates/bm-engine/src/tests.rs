@@ -372,3 +372,237 @@ fn a_synced_deck_lands_on_the_beat_after_a_jump() {
         "deck 2 is {off} beats on in the bar"
     );
 }
+
+/// A deck playing `t` with a master grid at 120 BPM.
+fn playing(t: Track) -> Engine {
+    let mut e = Engine::new(SR);
+    load(&mut e, 0, t);
+    e.set(0, param::BEAT, 0.5);
+    e.set(0, param::ANCHOR, 0.0);
+    e.set(0, param::MASTER, 1.0);
+    e.set(0, param::PLAY, 1.0);
+    e
+}
+
+fn noise(rate: f64, seconds: f64) -> Track {
+    let mut s = 12345u32;
+    let x: Vec<f32> = (0..(seconds * rate) as usize)
+        .map(|_| {
+            s ^= s << 13;
+            s ^= s >> 17;
+            s ^= s << 5;
+            0.3 * (s as f32 / u32::MAX as f32 * 2.0 - 1.0)
+        })
+        .collect();
+    Track::from_buffers(rate, x.clone(), x)
+}
+
+fn sound(x: &[f32]) -> bool {
+    x.iter().all(|v| v.is_finite() && v.abs() < 2.0)
+}
+
+#[test]
+fn every_color_fx_changes_the_sound_both_ways_and_is_off_in_the_centre() {
+    for kind in [
+        color::FILTER,
+        color::SPACE,
+        color::DUB_ECHO,
+        color::SWEEP,
+        color::NOISE,
+        color::CRUSH,
+    ] {
+        for side in [-0.8, 0.8] {
+            let mut dry = playing(clicks(SR, 6.0, 0.5, 0.0));
+            let mut wet = playing(clicks(SR, 6.0, 0.5, 0.0));
+            wet.set(GLOBAL, param::G_COLOR_TYPE, kind as f64);
+            wet.set(0, param::FILTER, side);
+            let a = run(&mut dry, 2.0);
+            let b = run(&mut wet, 2.0);
+            assert!(sound(&b), "kind {kind} side {side}: not finite or too loud");
+            let diff = rms(&a.iter().zip(&b).map(|(x, y)| x - y).collect::<Vec<_>>());
+            assert!(
+                diff > 0.01 * rms(&a),
+                "kind {kind} side {side}: no change ({diff})"
+            );
+        }
+        // Centred, the dry-only effects pass the sound untouched.
+        if [color::FILTER, color::SWEEP, color::NOISE, color::CRUSH].contains(&kind) {
+            let mut dry = playing(sine(SR, 3.0, 440.0));
+            let mut wet = playing(sine(SR, 3.0, 440.0));
+            wet.set(GLOBAL, param::G_COLOR_TYPE, kind as f64);
+            wet.set(0, param::FILTER, 0.0);
+            let a = run(&mut dry, 1.0);
+            let b = run(&mut wet, 1.0);
+            let worst = a
+                .iter()
+                .zip(&b)
+                .map(|(x, y)| (x - y).abs())
+                .fold(0.0, f32::max);
+            assert!(
+                worst < 1e-4,
+                "kind {kind}: centred but changes the sound by {worst}"
+            );
+        }
+    }
+}
+
+#[test]
+fn color_filter_resonance_follows_the_parameter() {
+    let peak = |param: f64| {
+        let mut e = playing(noise(SR, 3.0));
+        e.set(GLOBAL, param::G_COLOR_TYPE, color::FILTER as f64);
+        e.set(GLOBAL, param::G_COLOR_PARAM, param);
+        e.set(0, param::FILTER, -0.5);
+        rms(&run(&mut e, 1.0)[24_000..])
+    };
+    assert!(peak(1.0) > peak(0.0) * 1.2);
+}
+
+#[test]
+fn space_and_dub_echo_ring_on_after_the_knob_returns() {
+    for kind in [color::SPACE, color::DUB_ECHO] {
+        let mut e = playing(clicks(SR, 10.0, 0.5, 0.0));
+        e.set(GLOBAL, param::G_COLOR_TYPE, kind as f64);
+        e.set(GLOBAL, param::G_COLOR_PARAM, 0.8);
+        e.set(0, param::FILTER, 0.9);
+        run(&mut e, 2.0);
+        // Centred again: the clicks no longer feed it, but what it holds rings on.
+        e.set(0, param::FILTER, 0.0);
+        let mut dry = playing(clicks(SR, 10.0, 0.5, 0.0));
+        run(&mut dry, 2.0);
+        let a = run(&mut dry, 0.3);
+        let b = run(&mut e, 0.3);
+        assert!(sound(&b), "kind {kind}");
+        let diff = rms(&a.iter().zip(&b).map(|(x, y)| x - y).collect::<Vec<_>>());
+        assert!(diff > 0.005, "kind {kind}: no tail ({diff})");
+    }
+}
+
+#[test]
+fn every_beat_fx_is_stable_changes_the_sound_and_lets_go() {
+    let kinds = [
+        fx::ECHO,
+        fx::REVERB,
+        fx::FLANGER,
+        fx::ROLL,
+        fx::DELAY,
+        fx::PING_PONG,
+        fx::SPIRAL,
+        fx::TRANS,
+        fx::FILTER,
+        fx::PHASER,
+        fx::PITCH,
+        fx::SLIP_ROLL,
+        fx::VINYL_BRAKE,
+        fx::HELIX,
+    ];
+    for kind in kinds {
+        let mut dry = playing(noise(SR, 12.0));
+        let mut wet = playing(noise(SR, 12.0));
+        wet.set(GLOBAL, param::G_FX_TYPE, kind as f64);
+        wet.set(GLOBAL, param::G_FX_TARGET, 0.0);
+        wet.set(GLOBAL, param::G_FX_BEATS, 1.0);
+        wet.set(GLOBAL, param::G_FX_WET, 0.8);
+        wet.set(
+            GLOBAL,
+            param::G_FX_PARAM,
+            if kind == fx::PITCH { 1.0 } else { 0.6 },
+        );
+        run(&mut dry, 0.5);
+        run(&mut wet, 0.5);
+        wet.set(GLOBAL, param::G_FX_ON, 1.0);
+        let a = run(&mut dry, 3.0);
+        let b = run(&mut wet, 3.0);
+        assert!(sound(&b), "fx {kind}: not finite or too loud");
+        let diff = rms(&a.iter().zip(&b).map(|(x, y)| x - y).collect::<Vec<_>>());
+        assert!(
+            diff > 0.05 * rms(&a),
+            "fx {kind}: no change ({diff} vs {})",
+            rms(&a)
+        );
+        // Off again: the sound comes back (echo tails may ring a while).
+        wet.set(GLOBAL, param::G_FX_ON, 0.0);
+        run(&mut dry, 6.0);
+        let tail = run(&mut wet, 6.0);
+        assert!(sound(&tail), "fx {kind}: unstable after switching off");
+        let a = run(&mut dry, 0.5);
+        let b = run(&mut wet, 0.5);
+        let diff = rms(&a.iter().zip(&b).map(|(x, y)| x - y).collect::<Vec<_>>());
+        assert!(
+            diff < 0.25 * rms(&a),
+            "fx {kind}: still on after 6 s off ({diff})"
+        );
+    }
+}
+
+#[test]
+fn vinyl_brake_slows_to_silence() {
+    let mut e = playing(sine(SR, 10.0, 440.0));
+    e.set(GLOBAL, param::G_FX_TYPE, fx::VINYL_BRAKE as f64);
+    e.set(GLOBAL, param::G_FX_TARGET, 0.0);
+    e.set(GLOBAL, param::G_FX_BEATS, 2.0);
+    e.set(GLOBAL, param::G_FX_WET, 1.0);
+    run(&mut e, 0.5);
+    e.set(GLOBAL, param::G_FX_ON, 1.0);
+    let first = run(&mut e, 0.3);
+    // Two beats at 120 BPM: stopped after a second.
+    run(&mut e, 1.0);
+    let after = run(&mut e, 0.5);
+    assert!(freq(&first) > 300.0, "{}", freq(&first));
+    assert!(rms(&after) < 0.05, "{}", rms(&after));
+}
+
+#[test]
+fn pitch_shifts_up_an_octave() {
+    let mut e = playing(sine(SR, 10.0, 440.0));
+    e.set(GLOBAL, param::G_FX_TYPE, fx::PITCH as f64);
+    e.set(GLOBAL, param::G_FX_TARGET, 0.0);
+    e.set(GLOBAL, param::G_FX_WET, 1.0);
+    e.set(GLOBAL, param::G_FX_PARAM, 1.0);
+    e.set(GLOBAL, param::G_FX_ON, 1.0);
+    run(&mut e, 0.5);
+    let f = freq(&run(&mut e, 1.0));
+    assert!((f - 880.0).abs() < 60.0, "{f}");
+}
+
+#[test]
+fn trans_cuts_in_time_with_the_beat() {
+    let mut e = playing(sine(SR, 10.0, 440.0));
+    e.set(GLOBAL, param::G_FX_TYPE, fx::TRANS as f64);
+    e.set(GLOBAL, param::G_FX_TARGET, 0.0);
+    e.set(GLOBAL, param::G_FX_BEATS, 0.5);
+    e.set(GLOBAL, param::G_FX_WET, 1.0);
+    e.set(GLOBAL, param::G_FX_PARAM, 0.5);
+    e.set(GLOBAL, param::G_FX_ON, 1.0);
+    run(&mut e, 0.2);
+    let out = run(&mut e, 1.0);
+    // Half-beat cuts at 120 BPM: 4 per second, about half the time silent.
+    let silent =
+        out.chunks(240).filter(|c| rms(c) < 0.01).count() as f64 / (out.len() / 240) as f64;
+    assert!((0.3..0.7).contains(&silent), "{silent}");
+}
+
+#[test]
+#[ignore = "timing; run with --ignored --nocapture"]
+fn fx_cost() {
+    let mut e = Engine::new(SR);
+    for d in 0..4 {
+        load(&mut e, d, sine(44_100.0, 60.0, 220.0 + 50.0 * d as f64));
+        e.set(d, param::PLAY, 1.0);
+    }
+    let time = |e: &mut Engine| {
+        let t = std::time::Instant::now();
+        run(e, 20.0);
+        t.elapsed().as_secs_f64() / 20.0 * 1e3
+    };
+    let plain = time(&mut e);
+    for kind in [color::SPACE, color::DUB_ECHO, color::NOISE] {
+        e.set(GLOBAL, param::G_COLOR_TYPE, kind as f64);
+        for d in 0..4 {
+            e.set(d, param::FILTER, 0.7);
+        }
+        e.set(GLOBAL, param::G_FX_TYPE, fx::SPIRAL as f64);
+        e.set(GLOBAL, param::G_FX_ON, 1.0);
+        println!("4 decks, colour fx {kind} on all and spiral on the master: {:.1} ms per second (plain {plain:.1})", time(&mut e));
+    }
+}

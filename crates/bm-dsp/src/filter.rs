@@ -36,6 +36,15 @@ impl DjFilter {
         }
     }
 
+    /// Resonance: Q, 0.5 (none) to about 4 (sharp). 0.9 by default.
+    pub fn set_resonance(&mut self, q: f32) {
+        let k = 1.0 / q.clamp(0.5, 6.0);
+        if k != self.k {
+            self.k = k;
+            self.coefficients();
+        }
+    }
+
     /// Sets the knob, -1 (low-pass closed) to 1 (high-pass closed).
     #[inline]
     pub fn set(&mut self, position: f32) {
@@ -52,6 +61,11 @@ impl DjFilter {
             self.ic2 = [0.0; 2];
         }
         self.position = position;
+        self.coefficients();
+    }
+
+    fn coefficients(&mut self) {
+        let position = self.position;
         if position == 0.0 {
             return;
         }
