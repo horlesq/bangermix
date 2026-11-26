@@ -1,7 +1,8 @@
 name: Desktop
 
 # Builds the desktop installers (Windows, macOS, Linux). A tag like v0.2.0 also
-# publishes them as a GitHub release with that version; "Run workflow" on the Actions
+# publishes them as a GitHub release with that version (v0.2.0-beta: a pre-release),
+# its notes from docs/release-notes.md; "Run workflow" on the Actions
 # page builds them without releasing (download them from the run's artifacts).
 
 on:
@@ -80,12 +81,16 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           pattern: desktop-*
           path: files
           merge-multiple: true
+      # Notes from docs/release-notes.md; a tag with a suffix (v0.1.0-beta) is a
+      # pre-release.
       - uses: softprops/action-gh-release@v2
         with:
           files: files/*
-          generate_release_notes: true
+          body_path: docs/release-notes.md
+          prerelease: ${{ contains(github.ref_name, '-') }}

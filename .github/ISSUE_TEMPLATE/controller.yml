@@ -1,0 +1,37 @@
+name: Controller report
+description: How a DJ controller works with BangerMix (working well is worth reporting too).
+labels: [controller]
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Controller
+      placeholder: Pioneer DDJ-FLX4
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: How well does it work?
+      options:
+        - Everything I tried works
+        - Mostly works, some controls don't
+        - Recognised, but hardly anything works
+        - Not recognised at all
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: What works and what doesn't
+      description: Jog wheels, play/cue, sync, pads, faders and knobs, lights, the headphone cue, the controller's sound card.
+  - type: input
+    id: mapping
+    attributes:
+      label: Mapping shown in Settings → Controllers
+      placeholder: "Pioneer DDJ-FLX4 (Mixxx)"
+  - type: input
+    id: system
+    attributes:
+      label: Browser or desktop app, and system
+      placeholder: Desktop app on macOS 15

@@ -19,6 +19,8 @@
 
 Everything runs on your computer: the audio engine, track analysis and your library. Nothing is uploaded.
 
+> **Beta: help test it.** BangerMix hasn't been tried on real DJ hardware yet. If you have a controller, a CDJ/XDJ or a Denon player, please try it and tell me how it went, even if everything worked: [controller report](https://github.com/horlesq/bangermix/issues/new?template=controller.yml) · [USB stick on a player](https://github.com/horlesq/bangermix/issues/new?template=player.yml) · [bug report](https://github.com/horlesq/bangermix/issues/new?template=bug.yml).
+
 ## Contents
 - [Features](#features)
 - [Getting started](#getting-started)

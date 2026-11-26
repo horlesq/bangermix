@@ -1,0 +1,43 @@
+name: USB stick on a player
+description: How a stick exported from BangerMix plays on a CDJ, XDJ or Denon player.
+labels: [usb-export]
+body:
+  - type: input
+    id: player
+    attributes:
+      label: Player and firmware
+      placeholder: CDJ-2000NXS2, firmware 1.85
+    validations:
+      required: true
+  - type: dropdown
+    id: format
+    attributes:
+      label: Exported for
+      options:
+        - Pioneer (rekordbox)
+        - Denon (Engine DJ)
+        - Both
+    validations:
+      required: true
+  - type: checkboxes
+    id: works
+    attributes:
+      label: What showed up correctly
+      options:
+        - label: The stick is recognised
+        - label: Playlists and tracks are listed
+        - label: Tracks play
+        - label: Beat grid / BPM
+        - label: Hot cues (with colours and names)
+        - label: Memory cues and loops
+        - label: Waveforms
+  - type: textarea
+    id: details
+    attributes:
+      label: What went wrong, if anything
+      description: Error messages, missing tracks, cues in the wrong place… A photo of the player's screen helps.
+  - type: input
+    id: stick
+    attributes:
+      label: Stick format
+      placeholder: exFAT, 64 GB
